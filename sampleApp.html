@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<meta charset="utf-8"/>
+</head>
+<body>
+<p><link rel="stylesheet" href="style.css"></p>
+
+<h1 id="michaelhartl-chapter3-14creatingtwitterclone">Michael Hartl - Chapter 3 - 14; creating twitter clone</h1>
+
+<p><a href="https://www.railstutorial.org/book">from here</a></p>
+
+<ul>
+<li>rails new new sample_app</li>
+<li>update the gems</li>
+</ul>
+
+<pre><code>group :development, :test do
+  # Call 'byebug' anywhere in the code to stop execution and get a debugger console
+  gem 'sqlite3'
+  gem 'byebug', platforms: [:mri, :mingw, :x64_mingw]
+end
+
+group :development do
+  # Access an interactive console on exception pages or by calling 'console' anywhere in the code.
+  gem 'web-console', '&gt;= 3.3.0'
+  gem 'listen', '&gt;= 3.0.5', '&lt; 3.2'
+  # Spring speeds up development by keeping your application running in the background. Read more: https://github.com/rails/spring
+  gem 'spring'
+  gem 'spring-watcher-listen', '~&gt; 2.0.0'
+end
+
+group :test do
+  # Adds support for Capybara system testing and selenium driver
+  # gem 'capybara', '&gt;= 2.15'
+  # gem 'selenium-webdriver'
+  # Easy installation and use of chromedriver to run system tests with Chrome
+  # gem 'chromedriver-helper'
+  gem 'rails-controller-testing', '1.0.2'
+  gem 'minitest-reporters',       '1.1.14'
+  gem 'guard',                    '2.13.0'
+  gem 'guard-minitest',           '2.4.4'  
+end
+
+group :production do
+  gem 'pg', '0.18.4'
+end
+</code></pre>
+
+<ul>
+<li>bundle install &#8211;without production</li>
+<li>git checkout -b static-pages</li>
+<li>rails generate controller StaticPages home help</li>
+<li><strong>undoing things</strong></li>
+</ul>
+
+<pre><code>(In fact, as we saw in Section 2.2 and Section 2.3, rails generate can make automatic edits to the routes.rb file, which we also want to undo automatically.) In Rails, this can be accomplished with rails destroy followed by the name of the generated element. In particular, these two commands cancel each other out:
+
+  $ rails generate controller StaticPages home help
+  $ rails destroy  controller StaticPages home help
+Similarly, in Chapter 6 we’ll generate a model as follows:
+
+  $ rails generate model User name:string email:string
+This can be undone using
+
+  $ rails destroy model User
+(In this case, it turns out we can omit the other command-line arguments. When you get to Chapter 6, see if you can figure out why.)
+
+Another technique related to models involves undoing migrations, which we saw briefly in Chapter 2 and will see much more of starting in Chapter 6. Migrations change the state of the database using the command
+
+  $ rails db:migrate
+We can undo a single migration step using
+
+  $ rails db:rollback
+To go all the way back to the beginning, we can use
+
+  $ rails db:migrate VERSION=0
+As you might guess, substituting any other number for 0 migrates to that version number, where the version numbers come from listing the migrations sequentially.
+</code></pre>
+
+<ul>
+<li>update the content of /static/home</li>
+</ul>
+
+<pre><code>&lt;h1&gt;Sample App&lt;/h1&gt;
+&lt;p&gt;
+  This is the home page for the
+  &lt;a href=&quot;http://www.railstutorial.org/&quot;&gt;Ruby on Rails Tutorial&lt;/a&gt;
+  sample application.
+&lt;/p&gt;
+</code></pre>
+
+<ul>
+<li>update content of static/help</li>
+</ul>
+
+<pre><code>&lt;h1&gt;Help&lt;/h1&gt;
+&lt;p&gt;
+  Get help on the Ruby on Rails Tutorial at the
+  &lt;a href=&quot;http://www.railstutorial.org/help&quot;&gt;Rails Tutorial help page&lt;/a&gt;.
+  To get help on this sample app, see the
+  &lt;a href=&quot;http://www.railstutorial.org/book&quot;&gt;&lt;em&gt;Ruby on Rails Tutorial&lt;/em&gt;
+  book&lt;/a&gt;.
+&lt;/p&gt;
+</code></pre>
+
+<h2 id="gettingstartedwithtesting">getting started with testing</h2>
+
+<ul>
+<li></li>
+</ul>
+
+</body>
+</html>
