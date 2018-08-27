@@ -1,0 +1,25 @@
+body {
+  width: 90%;
+  margin: auto;
+  background: #eee;
+  padding: 20px;
+}
+
+pre {
+  background: #ddd;
+  padding: 20px;
+  overflow: scroll;
+}
+
+html {
+  background: steelblue;
+  color: #333;
+}
+
+hr {
+  margin: 50px 0;
+}
+
+img {
+  width: 100%;
+}
