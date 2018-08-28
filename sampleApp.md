@@ -275,4 +275,594 @@ root 'static_pages#home'
   end
 ```
 
+** 3.6 Advanced testing setup
+
+- using minitest-reporters gem, we did that above,
+- in the test/test_helper, add the lines
+
+```
+require 'rails/test_help'
+require "minitest/reporters"
+```
+
+- using guard gem
+
+```
+One annoyance associated with using the rails test command is having to switch to the command line and run the tests by hand. To avoid this inconvenience, we can use Guard to automate the running of the tests. Guard monitors changes in the filesystem so that, for example, when we change the static_pages_controller_test.rb file, only those tests get run. Even better, we can configure Guard so that when, say, the home.html.erb file is modified, the static_pages_controller_test.rb automatically runs.
+```
+
+- bundle exec guard init
+- **He recommends using the guardfile version from his site**
+- [from here](https://bitbucket.org/railstutorial/sample_app_4th_ed/raw/289fcb83f1cd72b51c05fe9319277d590d51f0d2/Guardfile)
+- copy and paste to the file sample_app/guardfile
+- add to .gitignore
+
+```
+# Ignore Spring files.
+/spring/*.pid
+```
+
+-  bundle exec guard
+-  [using Guard github](https://github.com/guard/guard)
+-  [Guard wiki](https://github.com/guard/guard)
+
+- ** Unix processes - problems with 'Spring' **
+
+```
+Box 3.4. Unix processes
+On Unix-like systems such as Linux and macOS, user and system tasks each take place within a well-defined container called a process. To see all the processes on your system, you can use the ps command with the aux options:
+
+  $ ps aux
+To filter the processes by type, you can run the results of ps through the grep pattern-matcher using a Unix pipe |:
+
+  $ ps aux | grep spring
+  ec2-user 12241 0.3 0.5 589960 178416 ? Ssl Sep20 1:46
+  spring app | sample_app | started 7 hours ago
+The result shown gives some details about the process, but the most important thing is the first number, which is the process id, or pid. To eliminate an unwanted process, use the kill command to issue the Unix termination signal (which happens to be 15) to the pid:
+
+  $ kill -15 12241
+This is the technique I recommend for killing individual processes, such as a rogue Rails server (with the pid found via ps aux | grep server), but sometimes it’s convenient to kill all the processes matching a particular process name, such as when you want to kill all the spring processes gunking up your system. In this particular case, you should first try stopping the processes with the spring command itself:
+
+  $ spring stop
+Sometimes this doesn’t work, though, and you can kill all the processes with name spring using the pkill command as follows:
+
+  $ pkil
+  - l -15 -f spring
+Any time something isn’t behaving as expected or a process appears to be frozen, it’s a good idea to run ps aux to see what’s going on, and then run kill -15 <pid> or pkill -15 -f <name> to clear things up.
+```
+
+## Chapter 4 - rails flavored Ruby
+
+- git checkout -b rails-flavored-ruby
+- ** adding a 'base title', for the pages in case there is no 'title' set
+- in the app/helpers/app_helper add
+
+```
+  # Returns the full title on a per-page basis.
+  def full_title(page_title = '')
+    base_title = "Ruby on Rails Tutorial Sample App"
+    if page_title.empty?
+      base_title
+    else
+      page_title + " | " + base_title
+    end
+  end
+```
+
+- in layouts/app replace 'title' with
+
+```
+<title><%= full_title(yield(:title)) %></title>
+```
+
+- update stat_pag_con_test home test with
+
+```
+  test "should get home" do
+    get static_pages_home_url
+    assert_response :success
+    assert_select "title", "#{@base_title}"
+  end
+```
+
+- rails test: fails 1
+- get rid of the 'provide', from the home file
+- rails test: pass
+= **[For more reference here](https://www.railstutorial.org/book/rails_flavored_ruby)  **
+
+## Chapter 5 - filling in the layout
+
+- update the layouts/app file
+
+```
+<!DOCTYPE html>
+<html>
+  <head>
+    <title><%= full_title(yield(:title)) %></title>
+    <%= csrf_meta_tags %>
+    <%= stylesheet_link_tag    'application', media: 'all',
+                                              'data-turbolinks-track': 'reload' %>
+    <%= javascript_include_tag 'application', 'data-turbolinks-track': 'reload' %>
+    <!--[if lt IE 9]>
+      <script src="//cdnjs.cloudflare.com/ajax/libs/html5shiv/r29/html5.min.js">
+      </script>
+    <![endif]-->
+  </head>
+  <body>
+    <header class="navbar navbar-fixed-top navbar-inverse">
+      <div class="container">
+        <%= link_to "sample app", '#', id: "logo" %>
+        <nav>
+          <ul class="nav navbar-nav navbar-right">
+            <li><%= link_to "Home",   '#' %></li>
+            <li><%= link_to "Help",   '#' %></li>
+            <li><%= link_to "Log in", '#' %></li>
+          </ul>
+        </nav>
+      </div>
+    </header>
+    <div class="container">
+      <%= yield %>
+    </div>
+  </body>
+</html>
+```
+
+- update home page
+
+```
+<div class=class="center jumbotron""center jumbotron">
+  <h1>Welcome to the Sample AppWelcome to the Sample App</h1>
+  <h2>
+    This is the home page for the
+         This is the home page for the   <a href="http://www.railstutorial.org/">Ruby on Rails Tutorial</a>
+    sample application.
+  </h2>
+
+  <%= link_to "Sign up now!", '#', class: "btn btn-lg btn-primary" %>
+</div>
+
+<%= link_to image_tag("rails.png", alt: "Rails logo"),
+            'http://rubyonrails.org/' %>
+```
+
+- add the bootstrap gem
+
+```
+gem 'bootstrap-sass', '3.3.7'
+```
+
+- bundle
+- create the file custom.scss and add
+
+```
+@import "bootstrap-sprockets";
+@import "bootstrap";
+
+/* universal */
+
+body {
+  padding-top: 60px;
+}
+
+section {
+  overflow: auto;
+}
+
+textarea {
+  resize: vertical;
+}
+
+.center {
+  text-align: center;
+}
+
+.center h1 {
+  margin-bottom: 10px;
+}
+
+/* typography */
+
+h1, h2, h3, h4, h5, h6 {
+  line-height: 1;
+}
+
+h1 {
+  font-size: 3em;
+  letter-spacing: -2px;
+  margin-bottom: 30px;
+  text-align: center;
+}
+
+h2 {
+  font-size: 1.2em;
+  letter-spacing: -1px;
+  margin-bottom: 30px;
+  text-align: center;
+  font-weight: normal;
+  color: #777;
+}
+
+p {
+  font-size: 1.1em;
+  line-height: 1.7em;
+}
+
+/* header */
+
+#logo {
+  float: left;
+  margin-right: 10px;
+  font-size: 1.7em;
+  color: #fff;
+  text-transform: uppercase;
+  letter-spacing: -1px;
+  padding-top: 9px;
+  font-weight: bold;
+}
+
+#logo:hover {
+  color: #fff;
+  text-decoration: none;
+}
+```
+
+- create the layous/shim and layouts/header partials
+- and put in layouts/app, in respective places
+
+```
+<%= render 'layouts/shim' %>
+<%= render 'layouts/header' %>
+```
+
+- create the footer partial as well
+
+```
+<footer class="footer">
+  <small>
+    The <a href="http://www.railstutorial.org/">Ruby on Rails Tutorial</a>
+    by <a href="http://www.michaelhartl.com/">Michael Hartl</a>
+  </small>
+  <nav>
+    <ul>
+      <li><%= link_to "About",   '#' %></li>
+      <li><%= link_to "Contact", '#' %></li>
+      <li><a href="http://news.railstutorial.org/">News</a></li>
+    </ul>
+  </nav>
+</footer>
+```
+
+- and add footer render
+
+```            
+<%= render 'layouts/footer' %>
+```
+
+- add footer css to custom
+
+```
+/* footer */
+
+footer {
+  margin-top: 45px;
+  padding-top: 5px;
+  border-top: 1px solid #eaeaea;
+  color: #777;
+}
+
+footer a {
+  color: #555;
+}
+
+footer a:hover {
+  color: #222;
+}
+
+footer small {
+  float: left;
+}
+
+footer ul {
+  float: right;
+  list-style: none;
+}
+
+footer ul li {
+  float: left;
+  margin-left: 15px;
+}
+```
+
+- create the rails_default partial
+
+```
+<%= csrf_meta_tags %>
+<%= stylesheet_link_tag    'application', media: 'all',
+                                          'data-turbolinks-track': 'reload' %>
+<%= javascript_include_tag 'application', 'data-turbolinks-track': 'reload' %>  
+```
+
+- and add the render
 - 
+```
+<%= render 'layouts/rails_default' %>
+```
+
+- update the custom.scss with sass and mixins
+
+```
+@import "bootstrap-sprockets";
+@import "bootstrap";
+
+/* mixins, variables, etc. */
+
+$gray-medium-light: #eaeaea;
+
+/* universal */
+
+body {
+  padding-top: 60px;
+}
+
+section {
+  overflow: auto;
+}
+
+textarea {
+  resize: vertical;
+}
+
+.center {
+  text-align: center;
+  h1 {
+    margin-bottom: 10px;
+  }
+}
+
+/* typography */
+
+h1, h2, h3, h4, h5, h6 {
+  line-height: 1;
+}
+
+h1 {
+  font-size: 3em;
+  letter-spacing: -2px;
+  margin-bottom: 30px;
+  text-align: center;
+}
+
+h2 {
+  font-size: 1.2em;
+  letter-spacing: -1px;
+  margin-bottom: 30px;
+  text-align: center;
+  font-weight: normal;
+  color: $gray-light;
+}
+
+p {
+  font-size: 1.1em;
+  line-height: 1.7em;
+}
+
+
+/* header */
+
+#logo {
+  float: left;
+  margin-right: 10px;
+  font-size: 1.7em;
+  color: white;
+  text-transform: uppercase;
+  letter-spacing: -1px;
+  padding-top: 9px;
+  font-weight: bold;
+  &:hover {
+    color: white;
+    text-decoration: none;
+  }
+}
+
+/* footer */
+
+footer {
+  margin-top: 45px;
+  padding-top: 5px;
+  border-top: 1px solid $gray-medium-light;
+  color: $gray-light;
+  a {
+    color: $gray;
+    &:hover {
+      color: $gray-darker;
+    }
+  }
+  small {
+    float: left;
+  }
+  ul {
+    float: right;
+    list-style: none;
+    li {
+      float: left;
+      margin-left: 15px;
+    }
+  }
+}
+```
+
+- **changing the default static pages links **
+- update the routes file
+
+```
+  root 'static_pages#home'
+  get  '/help',    to: 'static_pages#help'
+  get  '/about',   to: 'static_pages#about'
+  get  '/contact', to: 'static_pages#contact'
+```
+
+- we need to change the tests, 
+
+```
+require 'test_helper'
+
+class StaticPagesControllerTest < ActionDispatch::IntegrationTest
+
+  def setup
+    @base_title = "Ruby on Rails Tutorial Sample App"
+  end
+
+  test "should get root" do
+    get root_path
+    assert_response :success
+  end
+
+  test "should get help" do
+    get help_path
+    assert_response :success
+    assert_select "title", "Help | #{@base_title}"
+  end
+
+  test "should get about" do
+    get about_path
+    assert_response :success
+    assert_select "title", "About | #{@base_title}"
+  end  
+
+  test "should get contact" do
+    get contact_path
+    assert_response :success
+    assert_select "title", "Contact | #{@base_title}"
+  end    
+
+end
+```
+
+- ** It’s possible to use a named route other than the default using the as: option. Drawing inspiration from this famous Far Side comic strip, change the route for the Help page to use helf (Listing 5.29).**
+- in routes you would do
+
+```
+get  '/help',    to: 'static_pages#help', as: 'helf'
+```
+
+- then the link would be
+
+```
+helf_path
+```
+
+- update the links in the header file
+
+```
+<header class="navbar navbar-fixed-top navbar-inverse">
+  <div class="container">
+    <%= link_to "sample app", root_path, id: "logo" %>
+    <nav>
+      <ul class="nav navbar-nav navbar-right">
+        <li><%= link_to "Home",    root_path %></li>
+        <li><%= link_to "Help",    help_path %></li>
+        <li><%= link_to "Log in", '#' %></li>
+      </ul>
+    </nav>
+  </div>
+</header>
+```
+
+- update the footer links
+
+```
+<li><%= link_to "About",   about_path %></li>
+<li><%= link_to "Contact", contact_path %></li>
+```
+
+- ** link tests using an integration test **
+- rails generate integration_test site_layout and add the code
+
+```
+  test "layout links" do
+    get root_path
+    assert_template 'static_pages/home'
+    assert_select "a[href=?]", root_path, count: 2
+    assert_select "a[href=?]", help_path
+    assert_select "a[href=?]", about_path
+    assert_select "a[href=?]", contact_path
+  end
+```
+
+- to test only this test
+
+```
+rails test:integration
+```
+
+- **examples of other 'assert_selects'**
+
+```
+Code    Matching HTML
+assert_select "div" <div>foobar</div>
+assert_select "div", "foobar"   <div>foobar</div>
+assert_select "div.nav" <div class="nav">foobar</div>
+assert_select "div#profile" <div id="profile">foobar</div>
+assert_select "div[name=yo]"    <div name="yo">hey</div>
+assert_select "a[href=?]", '/', count: 1    <a href="/">foo</a>
+assert_select "a[href=?]", '/', text: "foo" <a href="/">foo</a>
+```
+
+- ** user signup **
+- rails generate controller Users new
+- edit the test/cont/user_con test to look for signup_path
+
+```
+  test "should get new" do
+    get signup_path
+    assert_response :success
+  end
+```
+
+- edit routes to be
+
+```
+get 'signup',    to: 'users#new'
+```
+
+- add a link test in the site_layout test
+
+```
+assert_select "a[href=?]", signup_path
+```
+
+- update the signup link in the home page
+
+```
+<%= link_to "Sign up now!", signup_path, class: "btn btn-lg btn-primary" %>
+```
+
+- add the test in the user_controller
+
+```
+  test "should get signup" do
+    get signup_path
+    assert_response :success
+    assert_select "title", "Signup | #{@base_title}"
+  end  
+```
+
+- update the file users/new
+
+```
+<% provide(:title, 'Sign up') %>
+<h1>Sign up</h1>
+<p>This will be a signup page for new users.</p>
+```
+
+- move from static_pag_con test, to test_helper
+
+```
+  def setup
+    @base_title = "Ruby on Rails Tutorial Sample App"
+  end
+```
+
+- that way all controllers have access to that
+-   
