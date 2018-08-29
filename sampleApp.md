@@ -865,4 +865,298 @@ assert_select "a[href=?]", signup_path
 ```
 
 - that way all controllers have access to that
--   
+
+## Chapter 6 - modeling users
+
+- rails generate model User name:string email:string
+- rails db:migrate
+- ** Most migrations (including all the ones in this tutorial) are reversible, which means we can “migrate down” and undo them with a single command, called db:rollback: **
+
+```
+rails db:rollback
+```
+
+- rails console --sandbox
+- User.new
+- user = User.new(name: "Michael Hartl", email: "mhartl@example.com")
+- user.valid?
+- user.save
+- foo = User.create(name: "Foo", email: "foo@bar.com")
+- foo.destroy
+- ** finding users **
+- User.find(1)
+- User.find_by(email: "mhartl@example.com")
+- User.first
+- User.all
+- User.find_by_name('Michael Hartl') [legacy apps]
+- ** If you’re worried that find_by will be inefficient if there are a large number of users, you’re ahead of the game; we’ll cover this issue, and its solution via database indices, in Section 6.2.5. **
+- ** updating user objects **
+- user
+- user.email = "mhartl@example.net"
+- user.save
+- user.update_attributes(name: "The Dude", email: "dude@abides.org")
+- user.update_attribute(:name, "El Duderino")
+- user.update(created_at: 1.year.ago)
+- ** user validations **
+- Our method will be to start with a valid model object, set one of its attributes to something we want to be invalid, and then test that it in fact is invalid. As a safety net, we’ll first write a test to make sure the initial model object is valid. This way, when the validation tests fail we’ll know it’s for the right reason (and not because the initial object was invalid in the first place).
+- update the test/modes/user test
+
+```
+  def setup
+    @user = User.new(name: "Example User", email: "user@example.com")
+  end
+
+  test "should be valid" do
+    assert @user.valid?
+  end
+```
+
+- rails test:models
+- ** validating presence **
+- update user test
+
+```
+require 'test_helper'
+
+class UserTest < ActiveSupport::TestCase
+  def setup
+    @user = User.new(name: "Example User", email: "user@example.com")
+  end
+
+  test "should be valid" do
+    assert @user.valid?
+  end
+
+  test "name should be present" do
+    @user.name = "     "
+    assert_not @user.valid?
+  end  
+end
+```
+
+- rails test should fail, because is not, not valid
+- update user.rb
+
+```
+ validates :name, presence: true
+```
+
+-  rails console --sandbox
+-  user = User.new(name: "", email: "mhartl@example.com")
+-  user.valid?
+-   user.errors.full_messages
+-   update the users test for email
+
+```
+  test "email should be present" do
+    @user.email = "     "
+    assert_not @user.valid?
+  end  
+```
+
+- add to user.rb
+
+```
+validates :email, presence: true
+```
+
+- ** length validation **
+- update user test
+
+```
+  test "name should not be too long" do
+    @user.name = "a" * 51
+    assert_not @user.valid?
+  end
+
+  test "email should not be too long" do
+    @user.email = "a" * 244 + "@example.com"
+    assert_not @user.valid?
+  end
+```
+
+- update the user.rb for length
+
+```
+  validates :name,  presence: true, length: { maximum: 50 }
+  validates :email, presence: true, length: { maximum: 255 }
+```
+
+- ** format validation **
+- Neither the tests nor the validation will be exhaustive, just good enough to accept most valid email addresses and reject most invalid ones. We’ll start with a couple of tests involving collections of valid and invalid addresses. To make these collections, it’s worth knowing about the useful %w[] technique for making arrays of strings, as seen in this console session:
+- %w[foo bar baz]
+- addresses = %w[USER@foo.COM THE_US-ER@foo.bar.org first.last@foo.jp]
+- addresses.each do |address|
+- puts address
+- end
+- update the user test
+
+```
+  test "email validation should accept valid addresses" do
+    valid_addresses = %w[user@example.com USER@foo.COM A_US-ER@foo.bar.org
+                         first.last@foo.jp alice+bob@baz.cn]
+    valid_addresses.each do |valid_address|
+      @user.email = valid_address
+      assert @user.valid?, "#{valid_address.inspect} should be valid"
+    end
+  end
+```
+
+- add a test for invalid addresses
+
+```
+  test "email validation should reject invalid addresses" do
+    invalid_addresses = %w[user@example,com user_at_foo.org user.name@example.
+                           foo@bar_baz.com foo@bar+baz.com]
+    invalid_addresses.each do |invalid_address|
+      @user.email = invalid_address
+      assert_not @user.valid?, "#{invalid_address.inspect} should be invalid"
+    end
+  end
+```
+
+- ** regex helper **
+- [or the website](http://www.rubular.com/)
+
+```
+Expression  Meaning
+/\A[\w+\-.]+@[a-z\d\-.]+\.[a-z]+\z/i    full regex
+/   start of regex
+\A  match start of a string
+[\w+\-.]+   at least one word character, plus, hyphen, or dot
+@   literal “at sign”
+[a-z\d\-.]+ at least one letter, digit, hyphen, or dot
+\.  literal dot
+[a-z]+  at least one letter
+\z  match end of a string
+/   end of regex
+i   case-insensitive
+```
+
+- update user.rb
+
+```
+  validates :name,  presence: true, length: { maximum: 50 }
+  VALID_EMAIL_REGEX = /\A[\w+\-.]+@[a-z\d\-]+(\.[a-z\d\-]+)*\.[a-z]+\z/i
+  validates :email, presence: true, length: { maximum: 255 },
+                    format: { with: VALID_EMAIL_REGEX }
+```
+
+- ** uniqueness **
+- update user test
+
+```
+  test "email addresses should be unique" do
+    duplicate_user = @user.dup
+    duplicate_user.email = @user.email.upcase    
+    @user.save
+    assert_not duplicate_user.valid?
+  end
+```
+
+- update user.rb
+
+```
+  validates :name,  presence: true, length: { maximum: 50 }
+  VALID_EMAIL_REGEX = /\A[\w+\-.]+@[a-z\d\-.]+\.[a-z]+\z/i
+  validates :email, presence: true, length: { maximum: 255 },
+                    format: { with: VALID_EMAIL_REGEX },
+                    uniqueness: { case_sensitive: false }
+```
+
+- ** a user can submit twice and mess this uniqueness up**
+- If the above sequence seems implausible, believe me, it isn’t: it can happen on any Rails website with significant traffic (which I once learned the hard way). Luckily, the solution is straightforward to implement: we just need to enforce uniqueness at the database level as well as at the model level. Our method is to create a database index on the email column (Box 6.2), and then require that the index be unique.
+- ** indexing the email in the database for quick reference **
+- rails generate migration add_index_to_users_email
+- update the migration file
+
+```
+  def change
+    add_index :users, :email, unique: true
+  end
+```
+
+- rails db:migrate
+- ** test should fail because fixtures were added that now fail the tests **
+- remove the content in test/fixtures/users.yml
+
+```
+
+# one:
+#   name: MyString
+#   email: MyString
+
+# two:
+#   name: MyString
+#   email: MyString
+```
+
+- ** adding a callback before we save the email address **
+- To avoid this incompatibility, we’ll standardize on all lower-case addresses, converting “Foo@ExAMPle.CoM” to “foo@example.com” before saving it to the database. The way to do this is with a callback, which is a method that gets invoked at a particular point in the lifecycle of an Active Record object. In the present case, that point is before the object is saved, so we’ll use a before_save callback to downcase the email attribute before saving the user.17 The result appears in Listing 6.32. (This is just a first implementation; we’ll discuss this subject again in Section 11.1, where we’ll use the preferred method reference convention for defining callbacks.)
+- in the user.rb
+
+```
+  before_save { email.downcase! }
+```
+
+- adding the test to user test
+
+```
+  test "email addresses should be saved as lower-case" do
+    mixed_case_email = "Foo@ExAMPle.CoM"
+    @user.email = mixed_case_email
+    @user.save
+    assert_equal mixed_case_email.downcase, @user.reload.email
+  end
+```
+
+- ** adding the password ability **
+- in user.rb
+
+```
+has_secure_password
+```
+
+- rails generate migration add_password_digest_to_users password_digest:string
+- rails db:migrate
+- add the bcrypt gem
+- bundle
+- the tests should be failing because of the password
+- update the user test with password attributes
+
+```
+  def setup
+    @user = User.new(name: "Example User", email: "user@example.com",
+                     password: "foobar", password_confirmation: "foobar")
+  end
+```
+
+- the tests should be passing
+- in user test add the password tests
+
+```
+  test "password should be present (nonblank)" do
+    @user.password = @user.password_confirmation = " " * 6
+    assert_not @user.valid?
+  end
+
+  test "password should have a minimum length" do
+    @user.password = @user.password_confirmation = "a" * 5
+    assert_not @user.valid?
+  end
+```
+
+- add to the user.rb
+
+```
+validates :password, presence: true, length: { minimum: 6 }
+```
+
+- rails c, to create an actual user
+- User.create(name: "Michael Hartl", email: "mhartl@example.com", password: "foobar", password_confirmation: "foobar")
+- u = User.first
+- u.password_digest
+- u.authenticate("foobaz") to test the authentication
+- !!u.authenticate("foobar") 
+- ** "Recalling from Section 4.2.3 that !! converts an object to its corresponding boolean value, we can see that user.authenticate does the job nicely:" **
+- 
