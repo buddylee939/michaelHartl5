@@ -1159,4 +1159,538 @@ validates :password, presence: true, length: { minimum: 6 }
 - u.authenticate("foobaz") to test the authentication
 - !!u.authenticate("foobar") 
 - ** "Recalling from Section 4.2.3 that !! converts an object to its corresponding boolean value, we can see that user.authenticate does the job nicely:" **
+
+## Chapter 7 - Sign up
+
+- ** This displays some useful information about each page using the built-in debug method and params variable (which we’ll learn more about in Section 7.1.2).**
+- in layouts/app add the debug line
+
+```
+    <div class="container">
+      <%= yield %>
+      <%= render 'layouts/footer' %>
+      <%= debug(params) if Rails.env.development? %>
+    </div>
+```
+
+- different rails console environments
+
+```
+Box 7.1. Rails environments
+Rails comes equipped with three environments: test, development, and production. The default environment for the Rails console is development:
+
+  $ rails console
+  Loading development environment
+  >> Rails.env
+  => "development"
+  >> Rails.env.development?
+  => true
+  >> Rails.env.test?
+  => false
+As you can see, Rails provides a Rails object with an env attribute and associated environment boolean methods, so that, for example, Rails.env.test? returns true in a test environment and false otherwise.
+
+If you ever need to run a console in a different environment (to debug a test, for example), you can pass the environment as a parameter to the console script:
+
+  $ rails console test
+  Loading test environment
+  >> Rails.env
+  => "test"
+  >> Rails.env.test?
+  => true
+As with the console, development is the default environment for the Rails server, but you can also run it in a different environment:
+
+  $ rails server --environment production
+If you view your app running in production, it won’t work without a production database, which we can create by running rails db:migrate in production:
+
+  $ rails db:migrate RAILS_ENV=production
+(I find it confusing that the idiomatic commands to run the console, server, and migrate commands in non-default environments use different syntax, which is why I bothered showing all three. It’s worth noting, though, that preceding any of them with RAILS_ENV=<env> will also work, as in RAILS_ENV=production rails server).
+
+By the way, if you have deployed your sample app to Heroku, you can see its environment using heroku run rails console:
+
+  $ heroku run rails console
+  >> Rails.env
+  => "production"
+  >> Rails.env.production?
+  => true
+Naturally, since Heroku is a platform for production sites, it runs each application in a production environment.
+```
+
+- add some css for the debug section
+
+```
+@mixin box_sizing {
+  -moz-box-sizing:    border-box;
+  -webkit-box-sizing: border-box;
+  box-sizing:         border-box;
+}
+/* miscellaneous */
+
+.debug_dump {
+  clear: both;
+  float: left;
+  width: 100%;
+  margin-top: 45px;
+  @include box_sizing;
+}
+```
+
+- in routes add user resources
+
+```
+resources :users
+```
+
+- create the file users/show
+
+```
+<%= @user.name %>, <%= @user.email %>
+```
+
+- in users controller
+
+```
+  def show
+    @user = User.find(params[:id])
+  end
+```
+
+- ** if you haven't restarted server after bcrypt install, restart it **
+- go to localhost/users/1 and we should see the first user
+- ** using debugger **
+- in the users controller update the show action
+
+```
+  def show
+    @user = User.find(params[:id])
+    debugger
+  end
+```
+
+- in the server terminal, debugger line
+
+```
+(byebug) @user.name
+"Example User"
+(byebug) @user.email
+"example@railstutorial.org"
+(byebug) params[:id]
+"1"
+```
+
+- ctrl-D to get out of it, comment out debugger in the show action
+- ** adding gravatar for user **
+- update the users/show page
+
+```
+<% provide(:title, @user.name) %>
+<h1>
+  <%= gravatar_for @user %>
+  <%= @user.name %>
+</h1>
+```
+
+- in app/helpers/users helper
+
+```
+module UsersHelper
+  # Returns the Gravatar for the given user.
+  def gravatar_for(user, size: 80)
+    gravatar_id = Digest::MD5::hexdigest(user.email.downcase)
+    gravatar_url = "https://secure.gravatar.com/avatar/#{gravatar_id}?s=#{size}"
+    image_tag(gravatar_url, alt: user.name, class: "gravatar")
+  end
+end
+```
+
+- refresh the page
+- update the user attribute to see the gravatar he controls
+- in rails console
+
+```
+$ rails console
+>> user = User.first
+>> user.update_attributes(name: "Example User",
+?>                        email: "example@railstutorial.org",
+?>                        password: "foobar",
+?>                        password_confirmation: "foobar")
+=> true
+```
+
+- update the show page with a sidebar
+
+```
+<% provide(:title, @user.name) %>
+<div class="row">
+  <aside class="col-md-4">
+    <section class="user_info">
+      <h1>
+        <%= gravatar_for @user %>
+        <%= @user.name %>
+      </h1>
+    </section>
+  </aside>
+</div>
+```
+
+- update the css to include sidebar and gravatar
+
+```
+/* sidebar */
+
+aside {
+  section.user_info {
+    margin-top: 20px;
+  }
+  section {
+    padding: 10px 0;
+    margin-top: 20px;
+    &:first-child {
+      border: 0;
+      padding-top: 0;
+    }
+    span {
+      display: block;
+      margin-bottom: 3px;
+      line-height: 1;
+    }
+    h1 {
+      font-size: 1.4em;
+      text-align: left;
+      letter-spacing: -1px;
+      margin-bottom: 3px;
+      margin-top: 0px;
+    }
+  }
+}
+
+.gravatar {
+  float: left;
+  margin-right: 10px;
+}
+
+.gravatar_edit {
+  margin-top: 15px;
+}
+```
+
+- ** Sign up form **
+- in users controller, update the new action
+
+```
+  def new
+    @user = User.new
+  end
+```
+
+- add the code to users/new
+
+```
+<% provide(:title, 'Sign up') %>
+<h1>Sign up</h1>
+
+<div class="row">
+  <div class="col-md-6 col-md-offset-3">
+    <%= form_for(@user) do |f| %>
+      <%= f.label :name %>
+      <%= f.text_field :name %>
+
+      <%= f.label :email %>
+      <%= f.email_field :email %>
+
+      <%= f.label :password %>
+      <%= f.password_field :password %>
+
+      <%= f.label :password_confirmation, "Confirmation" %>
+      <%= f.password_field :password_confirmation %>
+
+      <%= f.submit "Create my account", class: "btn btn-primary" %>
+    <% end %>
+  </div>
+</div>
+```
+
+- and the css for the form
+
+```
+/* forms */
+
+input, textarea, select, .uneditable-input {
+  border: 1px solid #bbb;
+  width: 100%;
+  margin-bottom: 15px;
+  @include box_sizing;
+}
+
+input {
+  height: auto !important;
+}
+```
+
+- ** unsuccessful signups **
+- update the new form to include error messages
+
+```
+<% provide(:title, 'Sign up') %>
+<h1>Sign up</h1>
+
+<div class="row">
+  <div class="col-md-6 col-md-offset-3">
+    <%= form_for(@user) do |f| %>
+      <%= render 'shared/error_messages' %>
+
+      <%= f.label :name %>
+      <%= f.text_field :name, class: 'form-control' %>
+
+      <%= f.label :email %>
+      <%= f.email_field :email, class: 'form-control' %>
+
+      <%= f.label :password %>
+      <%= f.password_field :password, class: 'form-control' %>
+
+      <%= f.label :password_confirmation, "Confirmation" %>
+      <%= f.password_field :password_confirmation, class: 'form-control' %>
+
+      <%= f.submit "Create my account", class: "btn btn-primary" %>
+    <% end %>
+  </div>
+</div>
+```
+
+- create views/shared/error_messages partial
+
+```
+<% if @user.errors.any? %>
+  <div id="error_explanation">
+    <div class="alert alert-danger">
+      The form contains <%= pluralize(@user.errors.count, "error") %>.
+    </div>
+    <ul>
+    <% @user.errors.full_messages.each do |msg| %>
+      <li><%= msg %></li>
+    <% end %>
+    </ul>
+  </div>
+<% end %>
+```
+
+- add error css to custom.scss
+
+```
+#error_explanation {
+  color: red;
+  ul {
+    color: red;
+    margin: 0 0 30px 0;
+  }
+}
+
+.field_with_errors {
+  @extend .has-error;
+  .form-control {
+    color: $state-danger-text;
+  }
+}
+```
+
+- in users controller, add create and private actions
+
+```
+  def create
+    @user = User.new(user_params)
+    if @user.save
+      # Handle a successful save.
+    else
+      render 'new'
+    end
+  end
+
+  private
+
+    def user_params
+      params.require(:user).permit(:name, :email, :password,
+                                   :password_confirmation)
+    end
+```
+
+- ** test for invalid form submissions ** 
+- rails generate integration_test users_signup
+
+```
+  test "invalid signup information" do
+    get signup_path
+    assert_no_difference 'User.count' do
+      post users_path, params: { user: { name:  "",
+                                         email: "user@invalid",
+                                         password:              "foo",
+                                         password_confirmation: "bar" } }
+    end
+    assert_template 'users/new'
+    assert_select 'div#error_explanation'
+    assert_select 'div.alert.alert-danger'       
+  end
+```
+
+- test should be green, because we wrote the code before
+- update routes
+
+```
+  get  '/signup',  to: 'users#new'
+  post '/signup',  to: 'users#create'
+```
+
+- update the new form with url on the form for
+
+```
+<%= form_for(@user, url: signup_path) do |f| %>
+```
+
+- update the user signup test with the sign up path
+
+```
+    assert_no_difference 'User.count' do
+      post signup_path, params: { user: { name:  "",
+                                         email: "user@invalid",
+                                         password:              "foo",
+                                         password_confirmation: "bar" } }
+    end
+```
+
+- update user signup test with presence of [form]     
+
+```
+assert_select 'form[action="/signup"]'   
+```
+
+- that is looking for form in signup, so new form should have
+
+```
+<%= form_for(@user, url: signup_path) do |f| %>
+```
+
+- tests should be green
+- ** successful signups **
+- add the redirect to users create action
+
+```
+  def create
+    @user = User.new(user_params)
+    if @user.save
+      flash[:success] = "Welcome to the Sample App!"    
+      redirect_to @user
+    else
+      render 'new'
+    end
+  end
+```
+
+- add the flash output to the layout/app above yield
+
+```
+      <% flash.each do |message_type, message| %>
+        <%= content_tag(:div, message, class: "alert alert-#{message_type}") %>
+      <% end %>
+```
+
+- clear out the database
+
+```
+rails db:migrate:reset
+```
+
+- refresh and create a new user at localhost/signup
+- ** valid test for submission **
+- add the signup info test to integration/users_signup
+
+```
+  test "valid signup information" do
+    get signup_path
+    assert_difference 'User.count', 1 do
+      post users_path, params: { user: { name:  "Example User",
+                                         email: "user@example.com",
+                                         password:              "password",
+                                         password_confirmation: "password" } }
+    end
+    follow_redirect!
+    assert_template 'users/show'
+    assert_select 'div.alert.alert-success'  
+    assert_not flash.empty?
+  end
+```
+
+# 7.5 professional grade deployment
+
+- merge any last changes and push
+- 
+```
+$ git add -A
+$ git commit -m "Finish user signup"
+$ git checkout master
+$ git merge sign-up
+```
+
+- in config/env/production.rb uncomment
+
+```
+config.force_ssl = true
+```
+
+- **At this stage, we need to set up SSL on the remote server. Setting up a production site to use SSL involves purchasing and configuring an SSL certificate for your domain. That’s a lot of work, though, and luckily we won’t need it here: for an application running on a Heroku domain (such as the sample application), we can piggyback on Heroku’s SSL certificate. As a result, when we deploy the application in Section 7.5.2, SSL will automatically be enabled. (If you want to run SSL on a custom domain, such as www.example.com, refer to Heroku’s documentation on SSL.)**
+- [heres the documentation](http://devcenter.heroku.com/articles/ssl)
+- **Having added SSL, we now need to configure our application to use a webserver suitable for production applications. By default, Heroku uses a pure-Ruby webserver called WEBrick, which is easy to set up and run but isn’t good at handling significant traffic. As a result, WEBrick isn’t suitable for production use, so we’ll replace WEBrick with Puma, an HTTP server that is capable of handling a large number of incoming requests.
+
+To add the new webserver, we simply follow the Heroku Puma documentation. The first step is to include the puma gem in our Gemfile, but as of Rails 5 Puma is included by default (Listing 3.2). This means we can skip right to the second step, which is to replace the default contents of the file config/puma.rb with the configuration shown in Listing 7.37. The code in Listing 7.37 comes straight from the Heroku documentation,13 and there is no need to understand it (Box 1.1).**
+
+- replace the content in config/puma with
+
+```
+workers Integer(ENV['WEB_CONCURRENCY'] || 2)
+threads_count = Integer(ENV['RAILS_MAX_THREADS'] || 5)
+threads threads_count, threads_count
+
+preload_app!
+
+rackup      DefaultRackup
+port        ENV['PORT']     || 3000
+environment ENV['RACK_ENV'] || 'development'
+
+on_worker_boot do
+  # Worker specific setup for Rails 4.1+
+  # See: https://devcenter.heroku.com/articles/
+  # deploying-rails-applications-with-the-puma-web-server#on-worker-boot
+  ActiveRecord::Base.establish_connection
+end
+```
+
+- at the root of the app create the file Procfile (./Procfile)
+
+```
+web: bundle exec puma -C config/puma.rb
+```
+
+- save and commit changes
+
+```
+$ rails test
+$ git add -A
+$ git commit -m "Use SSL and the Puma webserver in production"
+$ git push
+$ git push heroku
+$ heroku run rails db:migrate
+```
+
+- ** RUBY VERSION NUMBER IN PRODUCTION **
+
+- When deploying to Heroku, you may get a warning message like this one:
+
+```
+###### WARNING:
+       You have not declared a Ruby version in your Gemfile.
+       To set your Ruby version add this line to your Gemfile:
+       ruby '2.1.5'
+```
+
+```
+Experience shows that, at the level of this tutorial, the costs associated with including such an explicit Ruby version number outweigh the (negligible) benefits, so you should ignore this warning for now. The main issue is that keeping your sample app and system in sync with the latest Ruby version can be a huge inconvenience,15 and yet it almost never makes a difference which exact Ruby version number you use. Nevertheless, you should bear in mind that, should you ever end up running a mission-critical app on Heroku, specifying an exact Ruby version in the Gemfile is recommended to ensure maximum compatibility between development and production environments.
+```
+
 - 
