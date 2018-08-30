@@ -1693,4 +1693,345 @@ $ heroku run rails db:migrate
 Experience shows that, at the level of this tutorial, the costs associated with including such an explicit Ruby version number outweigh the (negligible) benefits, so you should ignore this warning for now. The main issue is that keeping your sample app and system in sync with the latest Ruby version can be a huge inconvenience,15 and yet it almost never makes a difference which exact Ruby version number you use. Nevertheless, you should bear in mind that, should you ever end up running a mission-critical app on Heroku, specifying an exact Ruby version in the Gemfile is recommended to ensure maximum compatibility between development and production environments.
 ```
 
+## Chapter 8 - Basic login
+
+- rails generate controller Sessions new
+- add in the routes
+
+```
+  get    '/login',   to: 'sessions#new'
+  post   '/login',   to: 'sessions#create'
+  delete '/logout',  to: 'sessions#destroy'
+```
+
+- update the code in test/cont/sessions_cont
+
+```
+  test "should get new" do
+    get login_path
+    assert_response :success
+  end
+```
+
+- tests should be green
+- update sessions/new
+
+```
+<% provide(:title, "Log in") %>
+<h1>Log in</h1>
+
+<div class="row">
+  <div class="col-md-6 col-md-offset-3">
+    <%= form_for(:session, url: login_path) do |f| %>
+
+      <%= f.label :email %>
+      <%= f.email_field :email, class: 'form-control' %>
+
+      <%= f.label :password %>
+      <%= f.password_field :password, class: 'form-control' %>
+
+      <%= f.submit "Log in", class: "btn btn-primary" %>
+    <% end %>
+
+    <p>New user? <%= link_to "Sign up now!", signup_path %></p>
+  </div>
+</div>
+```
+
+- update the sessions controller
+
+```
+  def new
+  end
+
+  def create
+    user = User.find_by(email: params[:session][:email].downcase)
+    if user && user.authenticate(params[:session][:password])
+      # Log the user in and redirect to the user's show page.
+    else
+      flash[:danger] = 'Invalid email/password combination' # Not quite right!
+      render 'new'
+    end
+  end
+
+  def destroy
+  end
+```
+
+-  **a flash test - testing for login submission **
+-  add the code to test/inte/users login test
+
+```
+  test "login with invalid information" do
+    get login_path
+    assert_template 'sessions/new'
+    post login_path, params: { session: { email: "", password: "" } }
+    assert_template 'sessions/new'
+    assert_not flash.empty?
+    get root_path
+    assert flash.empty?
+  end
+```
+
+- ** to run only 1 test, not all of them, nor the ones in a folder **
+
+```
+rails test test/integration/users_login_test.rb
+```
+
+- in sessions controller, replace flash with flash.now
+
+```
+      flash.now[:danger] = 'Invalid email/password combination'
+```
+
+- ** logging in **
+- in app controller add
+
+```
+include SessionsHelper
+```
+
+- in helpers/sessions helper
+
+```
+  # Logs in the given user.
+  def log_in(user)
+    session[:user_id] = user.id
+  end
+```
+
+- Because temporary cookies created using the session method are automatically encrypted, the code in Listing 8.14 is secure, and there is no way for an attacker to use the session information to log in as the user. This applies only to temporary sessions initiated with the session method, though, and is not the case for persistent sessions created using the cookies method. Permanent cookies are vulnerable to a session hijacking attack, so in Chapter 9 we’ll have to be much more careful about the information we place on the user’s browser.
+- in sessions controller, update the create action
+
+```
+  def create
+    user = User.find_by(email: params[:session][:email].downcase)
+    if user && user.authenticate(params[:session][:password])
+      log_in user
+      redirect_to user
+    else
+      flash.now[:danger] = 'Invalid email/password combination'
+      render 'new'
+    end
+  end
+```
+
+- add to the helpers/session helper
+
+```
+  # Returns the current logged-in user (if any).
+  def current_user
+    if session[:user_id]
+      @current_user ||= User.find_by(id: session[:user_id])
+    end
+  end
+```
+
+- ** heres an example of this in the console **
+
+```
+>> session = {}
+>> session[:user_id] = nil
+>> @current_user ||= User.find_by(id: session[:user_id])
+<What happens here?>
+>> session[:user_id]= User.first.id
+>> @current_user ||= User.find_by(id: session[:user_id])
+<What happens here?>
+>> @current_user ||= User.find_by(id: session[:user_id])
+<What happens here?>
+```
+
+- ** layout links changed **
+- add to the helpers/sessions helper
+
+```
+  # Returns true if the user is logged in, false otherwise.
+  def logged_in?
+    !current_user.nil?
+  end
+```
+
+- update the header partial with all the user links
+
+```
+<header class="navbar navbar-fixed-top navbar-inverse">
+  <div class="container">
+    <%= link_to "sample app", root_path, id: "logo" %>
+    <nav>
+      <ul class="nav navbar-nav navbar-right">
+        <li><%= link_to "Home", root_path %></li>
+        <li><%= link_to "Help", help_path %></li>
+        <% if logged_in? %>
+          <li><%= link_to "Users", '#' %></li>
+          <li class="dropdown">
+            <a href="#" class="dropdown-toggle" data-toggle="dropdown">
+              Account <b class="caret"></b>
+            </a>
+            <ul class="dropdown-menu">
+              <li><%= link_to "Profile", current_user %></li>
+              <li><%= link_to "Settings", '#' %></li>
+              <li class="divider"></li>
+              <li>
+                <%= link_to "Log out", logout_path, method: :delete %>
+              </li>
+            </ul>
+          </li>
+        <% else %>
+          <li><%= link_to "Log in", login_path %></li>
+        <% end %>
+      </ul>
+    </nav>
+  </div>
+</header>
+```
+
+- dropdown doesnt work cuz we havent add the js
+- in app.js
+
+```
+//= require jquery
+//= require bootstrap
+```
+
+- add the jquery-rails gem
+- refresh and test out the dropdown and login
+- ** testing layout changes using fixtures **
+- In order to see these changes, our test needs to log in as a previously registered user, which means that such a user must already exist in the database. The default Rails way to do this is to use fixtures, which are a way of organizing data to be loaded into the test database. We discovered in Section 6.2.5 that we needed to delete the default fixtures so that our email uniqueness tests would pass (Listing 6.31). Now we’re ready to start filling in that empty file with custom fixtures of our own.
+- add the code to user.rb
+
+```
+  # Returns the hash digest of the given string.
+  def User.digest(string)
+    cost = ActiveModel::SecurePassword.min_cost ? BCrypt::Engine::MIN_COST :
+                                                  BCrypt::Engine.cost
+    BCrypt::Password.create(string, cost: cost)
+  end
+```
+
+-   in test/fixtures/users.yml
+
+```
+michael:
+  name: Michael Example
+  email: michael@example.com
+  password_digest: <%= User.digest('password') %>
+```
+
+- update the users login test with
+
+```
+require 'test_helper'
+
+class UsersLoginTest < ActionDispatch::IntegrationTest
+  def setup
+    @user = users(:michael)
+  end
+
+  test "login with invalid information" do
+    get login_path
+    assert_template 'sessions/new'
+    post login_path, params: { session: { email: "", password: "" } }
+    assert_template 'sessions/new'
+    assert_not flash.empty?
+    get root_path
+    assert flash.empty?
+  end
+
+  test "login with valid information" do
+    get login_path
+    post login_path, params: { session: { email:    @user.email,
+                                          password: 'password' } }
+    assert_redirected_to @user
+    follow_redirect!
+    assert_template 'users/show'
+    assert_select "a[href=?]", login_path, count: 0
+    assert_select "a[href=?]", logout_path
+    assert_select "a[href=?]", user_path(@user)
+  end  
+end
+```
+
+- rails test test/integration/users_login_test.rb
+- should be green
+- ** login upon signup **
+- update users controller, add a log in user
+
+```
+  def create
+    @user = User.new(user_params)
+    if @user.save
+      log_in @user
+      flash[:success] = "Welcome to the Sample App!"
+      redirect_to @user
+    else
+      render 'new'
+    end
+  end
+```
+
+-   add to test/test helper
+
+```
+  def is_logged_in?
+    !session[:user_id].nil?
+  end
+```
+
+- add to inte/users signup test
+
+```
+    follow_redirect!
+    assert_template 'users/show'
+    assert_not flash.empty?
+    assert is_logged_in?
+```
+
+- test should be green
+- ** logging out **
+- add to helpers/sessions helper
+
+```
+  # Logs out the current user.
+  def log_out
+    session.delete(:user_id)
+    @current_user = nil
+  end
+```
+
+- update destroy action in cont/sess controller
+
+```
+  def destroy
+    log_out
+    redirect_to root_url
+  end
+```
+
+- update inte/users login test, so it logs in and logs out
+
+```
+  test "login with valid information followed by logout" do
+    get login_path
+    post login_path, params: { session: { email:    @user.email,
+                                          password: 'password' } }
+    assert is_logged_in?
+    assert_redirected_to @user
+    follow_redirect!
+    assert_template 'users/show'
+    assert_select "a[href=?]", login_path, count: 0
+    assert_select "a[href=?]", logout_path
+    assert_select "a[href=?]", user_path(@user)
+    delete logout_path
+    assert_not is_logged_in?
+    assert_redirected_to root_url
+    follow_redirect!
+    assert_select "a[href=?]", login_path
+    assert_select "a[href=?]", logout_path,      count: 0
+    assert_select "a[href=?]", user_path(@user), count: 0
+  end
+```
+
+- rails test should be green
+- refresh page and test login and logout
 - 

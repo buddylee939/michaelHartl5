@@ -10,5 +10,9 @@ class ActiveSupport::TestCase
   def setup
     @base_title = "Ruby on Rails Tutorial Sample App"
   end
-  # Add more helper methods to be used by all tests here...
+
+  def is_logged_in?
+    !session[:user_id].nil?
+  end
+
 end
