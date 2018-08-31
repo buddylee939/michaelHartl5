@@ -2034,4 +2034,444 @@ end
 
 - rails test should be green
 - refresh page and test login and logout
+
+## Chapter 9 - advanced login
+
+- ** remember me**
+
+```
+As noted in Section 8.2.1, information stored using session is automatically secure, but this is not the case with information stored using cookies. In particular, persistent cookies are vulnerable to session hijacking, in which an attacker uses a stolen remember token to log in as a particular user. There are four main ways to steal cookies: (1) using a packet sniffer to detect cookies being passed over insecure networks,1 (2) compromising a database containing remember tokens, (3) using cross-site scripting (XSS), and (4) gaining physical access to a machine with a logged-in user. We prevented the first problem in Section 7.5 by using Secure Sockets Layer (SSL) site-wide, which protects network data from packet sniffers. We’ll prevent the second problem by storing a hash digest of the remember tokens instead of the token itself, in much the same way that we stored password digests instead of raw passwords in Section 6.3.2 Rails automatically prevents the third problem by escaping any content inserted into view templates. Finally, although there’s no iron-clad way to stop attackers who have physical access to a logged-in computer, we’ll minimize the fourth problem by changing tokens every time a user logs out and by taking care to cryptographically sign any potentially sensitive information we place on the browser.
+```
+
+- With these design and security considerations in mind, our plan for creating persistent sessions appears as follows:
+
+```
+Create a random string of digits for use as a remember token.
+Place the token in the browser cookies with an expiration date far in the future.
+Save the hash digest of the token to the database.
+Place an encrypted version of the user’s id in the browser cookies.
+When presented with a cookie containing a persistent user id, find the user in the database using the given id, and verify that the remember token cookie matches the associated hash digest from the database.
+```
+
+- rails generate migration add_remember_digest_to_users remember_digest:string
+- rails db:migrate
+- ** using base64 random **
+
+```
+$ rails console
+>> SecureRandom.urlsafe_base64
+=> "q5lt38hQDc_959PVoo6b7A"
+```
+
+- add to the bottom of user.rb
+
+```
+  # Returns a random token.
+  def User.new_token
+    SecureRandom.urlsafe_base64
+  end
+```
+
+- update user.rb with remember and attr_accessor
+
+```
+class User < ApplicationRecord
+  attr_accessor :remember_token
+  before_save { self.email = email.downcase }
+  validates :name,  presence: true, length: { maximum: 50 }
+  VALID_EMAIL_REGEX = /\A[\w+\-.]+@[a-z\d\-.]+\.[a-z]+\z/i
+  validates :email, presence: true, length: { maximum: 255 },
+                    format: { with: VALID_EMAIL_REGEX },
+                    uniqueness: { case_sensitive: false }
+  has_secure_password
+  validates :password, presence: true, length: { minimum: 6 }
+
+  class << self
+    # Returns the hash digest of the given string.
+    def digest(string)
+      cost = ActiveModel::SecurePassword.min_cost ? BCrypt::Engine::MIN_COST :
+                                                    BCrypt::Engine.cost
+      BCrypt::Password.create(string, cost: cost)
+    end
+
+    # Returns a random token.
+    def new_token
+      SecureRandom.urlsafe_base64
+    end
+  end
+
+  # Remembers a user in the database for use in persistent sessions.
+  def remember
+    self.remember_token = User.new_token
+    update_attribute(:remember_digest, User.digest(remember_token))
+  end
+end
+```
+
+- add to user.rb authenticated method
+
+```
+  # Returns true if the given token matches the digest.
+  def authenticated?(remember_token)
+    BCrypt::Password.new(remember_digest).is_password?(remember_token)
+  end
+```
+
+- update the create in sessions controller
+
+```
+  def create
+    user = User.find_by(email: params[:session][:email].downcase)
+    if user && user.authenticate(params[:session][:password])
+      log_in user
+      remember user
+      redirect_to user
+    else
+      flash.now[:danger] = 'Invalid email/password combination'
+      render 'new'
+    end
+  end
+```
+
+- update the helpers/sessions helper with a remember method
+
+```
+module SessionsHelper
+  # Logs in the given user.
+  def log_in(user)
+    session[:user_id] = user.id
+  end
+
+  # Remembers a user in a persistent session.
+  def remember(user)
+    user.remember
+    cookies.permanent.signed[:user_id] = user.id
+    cookies.permanent[:remember_token] = user.remember_token
+  end  
+
+  # Returns the current logged-in user (if any).
+  def current_user
+    if session[:user_id]
+      @current_user ||= User.find_by(id: session[:user_id])
+    end
+  end
+
+  # Returns true if the user is logged in, false otherwise.
+  def logged_in?
+    !current_user.nil?
+  end   
+
+  # Logs out the current user.
+  def log_out
+    session.delete(:user_id)
+    @current_user = nil
+  end   
+end
+```
+
+- update the current user in sessions helper with
+
+```
+  # Returns the user corresponding to the remember token cookie.
+  def current_user
+    if (user_id = session[:user_id])
+      @current_user ||= User.find_by(id: user_id)
+    elsif (user_id = cookies.signed[:user_id])
+      user = User.find_by(id: user_id)
+      if user && user.authenticated?(cookies[:remember_token])
+        log_in user
+        @current_user = user
+      end
+    end
+  end
+```
+
+- test should be red, cuz users can't log out
+
+## forgetting users
+
+- in user.rb add the forget method
+
+```
+  # Forgets a user.
+  def forget
+    update_attribute(:remember_digest, nil)
+  end
+```
+
+- in helpers/sessions helper add forget 
+
+```
+  # Forgets a persistent session.
+  def forget(user)
+    user.forget
+    cookies.delete(:user_id)
+    cookies.delete(:remember_token)
+  end
+
+  # Logs out the current user.
+  def log_out
+    forget(current_user)
+    session.delete(:user_id)
+    @current_user = nil
+  end
+```
+
+- ** problems with the cookies when on chrome and firefox at the same time and you log out out of one or close the other, the one left open will have problems logging out, so we have to **
+- write a test for this, in inte/users login test update the code to be
+
+```
+  test "login with valid information followed by logout" do
+    get login_path
+    post login_path, params: { session: { email:    @user.email,
+                                          password: 'password' } }
+    assert is_logged_in?
+    assert_redirected_to @user
+    follow_redirect!
+    assert_template 'users/show'
+    assert_select "a[href=?]", login_path, count: 0
+    assert_select "a[href=?]", logout_path
+    assert_select "a[href=?]", user_path(@user)
+    delete logout_path
+    assert_not is_logged_in?
+    assert_redirected_to root_url
+    # Simulate a user clicking logout in a second window.
+    delete logout_path
+    follow_redirect!
+    assert_select "a[href=?]", login_path
+    assert_select "a[href=?]", logout_path,      count: 0
+    assert_select "a[href=?]", user_path(@user), count: 0
+  end
+```
+
+- update destroy action in sessions controller
+
+```
+  def destroy
+    log_out if logged_in?
+    redirect_to root_url
+  end
+```
+
+- in test/models/user test add authenticated?
+
+```
+  test "authenticated? should return false for a user with nil digest" do
+    assert_not @user.authenticated?('')
+  end
+```
+
+- ** remember me check box
+- add the checkbox to the form
+- add the css
+
+```
+.checkbox {
+  margin-top: -10px;
+  margin-bottom: 10px;
+  span {
+    margin-left: 20px;
+    font-weight: normal;
+  }
+}
+
+#session_remember_me {
+  width: auto;
+  margin-left: 0;
+}
+```
+
+- update the create action in the sessions controller
+
+```
+  def create
+    user = User.find_by(email: params[:session][:email].downcase)
+    if user && user.authenticate(params[:session][:password])
+      log_in user
+      params[:session][:remember_me] == '1' ? remember(user) : forget(user)
+      redirect_to user
+    else
+      flash.now[:danger] = 'Invalid email/password combination'
+      render 'new'
+    end
+  end
+```
+
+- refresh and test out the remember me
+- ** remember tests **
+- update test/test helper
+
+```
+ENV['RAILS_ENV'] ||= 'test'
+require_relative '../config/environment'
+require 'rails/test_help'
+require "minitest/reporters"
+Minitest::Reporters.use!
+class ActiveSupport::TestCase
+  # Setup all fixtures in test/fixtures/*.yml for all tests in alphabetical order.
+  fixtures :all
+  
+  def setup
+    @base_title = "Ruby on Rails Tutorial Sample App"
+  end
+
+  # Returns true if a test user is logged in.
+  def is_logged_in?
+    !session[:user_id].nil?
+  end
+
+  # Log in as a particular user.
+  def log_in_as(user)
+    session[:user_id] = user.id
+  end
+end
+
+class ActionDispatch::IntegrationTest
+
+  # Log in as a particular user.
+  def log_in_as(user, password: 'password', remember_me: '1')
+    post login_path, params: { session: { email: user.email,
+                                          password: password,
+                                          remember_me: remember_me } }
+  end
+end
+```
+
+- update int users login test
+
+```
+  test "login with remembering" do
+    log_in_as(@user, remember_me: '1')
+    assert_not_empty cookies['remember_token']
+  end
+
+  test "login without remembering" do
+    # Log in to set the cookie.
+    log_in_as(@user, remember_me: '1')
+    # Log in again and verify that the cookie is deleted.
+    log_in_as(@user, remember_me: '0')
+    assert_empty cookies['remember_token']
+  end
+```
+
+- test should be green
+- update create action in sessions controller
+
+```
+  def create
+    @user = User.find_by(email: params[:session][:email].downcase)
+    if @user && @user.authenticate(params[:session][:password])
+      log_in @user
+      params[:session][:remember_me] == '1' ? remember(@user) : forget(@user)
+      redirect_to @user
+    else
+      flash.now[:danger] = 'Invalid email/password combination'
+      render 'new'
+    end
+  end
+```
+
+- and add to inte/users login test
+
+```
+  test "login with remembering" do
+    log_in_as(@user, remember_me: '1')
+    # assert_equal cookies['remember_token'], assigns(:user).remember_token
+    assert_equal assigns[:user].remember_token, cookies['remember_token']
+  end
+
+  test "login without remembering" do
+    # Log in to set the cookie.
+    log_in_as(@user, remember_me: '1')
+    # Log in again and verify that the cookie is deleted.
+    log_in_as(@user, remember_me: '0')
+    assert_empty cookies['remember_token']
+  end
+```
+
+- ** testing the remember branch **
+- in helpers/sessions helper add the raise line to the current user action
+
+```
+  def current_user
+    if (user_id = session[:user_id])
+      @current_user ||= User.find_by(id: user_id)
+    elsif (user_id = cookies.signed[:user_id])
+     raise       # The tests still pass, so this branch is currently untested.      
+      user = User.find_by(id: user_id)
+      if user && user.authenticated?(cookies[:remember_token])
+        log_in user
+        @current_user = user
+      end
+    end
+  end
+```
+
+- create the file at the terminal
+
+```
+touch test/helpers/sessions_helper_test.rb
+```
+
+- add the code to helpers/sessions helper
+
+```
+require 'test_helper'
+
+class SessionsHelperTest < ActionView::TestCase
+
+  def setup
+    @user = users(:michael)
+    remember(@user)
+  end
+
+  test "current_user returns right user when session is nil" do
+    assert_equal @user, current_user
+    assert is_logged_in?
+  end
+
+  test "current_user returns nil when remember digest is wrong" do
+    @user.update_attribute(:remember_digest, User.digest(User.new_token))
+    assert_nil current_user
+  end
+end
+```
+
+- in helpers/sessions helper replace the current user method
+
+```
+  def current_user
+    if (user_id = session[:user_id])
+      @current_user ||= User.find_by(id: user_id)
+    elsif (user_id = cookies.signed[:user_id])
+      user = User.find_by(id: user_id)
+      if user && user.authenticated?(cookies[:remember_token])
+        log_in user
+        @current_user = user
+      end
+    end
+  end
+```
+
+- tests should be green
+
+### uploading current state to heroku
+
+- Before deploying to Heroku, it’s worth noting that the application will briefly be in an invalid state after pushing but before the migration is finished. On a production site with significant traffic, it’s a good idea to turn maintenance mode on before making the changes:
+[for more on this read here](https://devcenter.heroku.com/articles/maintenance-mode)
+
+```
+If you need to temporarily disable access to your Heroku app (for example, to perform a large migration), you can enable Heroku’s built-in maintenance mode. While in maintenance mode, your app serves a static maintenance page to all visitors.
+```
+
+```
+$ heroku maintenance:on
+$ git push heroku
+$ heroku run rails db:migrate
+$ heroku maintenance:off
+```
+
+## Chapter 10 - updating, showing, and deleting users
+
+- ** updating users **
 - 

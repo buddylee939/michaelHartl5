@@ -107,8 +107,2085 @@ As you might guess, substituting any other number for 0 migrates to that version
 <h2 id="gettingstartedwithtesting">getting started with testing</h2>
 
 <ul>
-<li></li>
+<li>test-driven development (TDD),8 a testing technique in which the programmer writes failing tests first, and then writes the application code to get the tests to pass.</li>
 </ul>
+
+<pre><code>In this context, it’s helpful to have a set of guidelines on when we should test first (or test at all). Here are some suggestions based on my own experience:
+
+When a test is especially short or simple compared to the application code it tests, lean toward writing the test first.
+When the desired behavior isn’t yet crystal clear, lean toward writing the application code first, then write a test to codify the result.
+Because security is a top priority, err on the side of writing tests of the security model first.
+Whenever a bug is found, write a test to reproduce it and protect against regressions, then write the application code to fix it.
+Lean against writing tests for code (such as detailed HTML structure) likely to change in the future.
+Write tests before refactoring code, focusing on testing error-prone code that’s especially likely to break.
+In practice, the guidelines above mean that we’ll usually write controller and model tests first and integration tests (which test functionality across models, views, and controllers) second. And when we’re writing application code that isn’t particularly brittle or error-prone, or is likely to change (as is often the case with views), we’ll often skip testing altogether.
+</code></pre>
+
+<ul>
+<li>rails test</li>
+<li>to see red and green, add the 2 lines to the test/test_helper file</li>
+</ul>
+
+<pre><code>require &quot;minitest/reporters&quot;
+Minitest::Reporters.use!
+</code></pre>
+
+<ul>
+<li>rails test: we should see the colors</li>
+</ul>
+
+<pre><code>“Red, Green, Refactor” cycle
+test-driven development involves writing a failing test first, writing the application code needed to get it to pass, and then refactoring the code if necessary. 
+</code></pre>
+
+<ul>
+<li>in the file test/controllers/static_pages_controller_test add the about test</li>
+<li>** this is a static page test **</li>
+</ul>
+
+<pre><code>  test &quot;should get about&quot; do
+    get static_pages_about_url
+    assert_response :success
+  end
+</code></pre>
+
+<ul>
+<li>in routes</li>
+</ul>
+
+<pre><code>get  'static_pages/about'
+</code></pre>
+
+<ul>
+<li>rails test: fails; action is missing</li>
+<li>in static_pages controller</li>
+</ul>
+
+<pre><code>  def about
+  end
+</code></pre>
+
+<ul>
+<li>rails test: fails; missing templage</li>
+<li>create static_pages/about and add the content</li>
+</ul>
+
+<pre><code>&lt;h1&gt;About&lt;/h1&gt;
+&lt;p&gt;
+  The &lt;a href=&quot;http://www.railstutorial.org/&quot;&gt;&lt;em&gt;Ruby on Rails
+  Tutorial&lt;/em&gt;&lt;/a&gt; is a
+  &lt;a href=&quot;http://www.railstutorial.org/book&quot;&gt;book&lt;/a&gt; and
+  &lt;a href=&quot;http://screencasts.railstutorial.org/&quot;&gt;screencast series&lt;/a&gt;
+  to teach web development with
+  &lt;a href=&quot;http://rubyonrails.org/&quot;&gt;Ruby on Rails&lt;/a&gt;.
+  This is the sample application for the tutorial.
+&lt;/p&gt;
+</code></pre>
+
+<ul>
+<li>rails test: passes</li>
+<li>** adding page titles to each page **</li>
+<li>add the lines to static_pages_cont_test, to each test</li>
+</ul>
+
+<pre><code>assert_select &quot;title&quot;, &quot;About | Ruby on Rails Tutorial Sample App&quot;
+</code></pre>
+
+<ul>
+<li>rails test: 3 failures</li>
+<li>update the test code with the &#8216;setup function&#8217;, which automatically runs before every title test</li>
+</ul>
+
+<pre><code>  def setup
+    @base_title = &quot;Ruby on Rails Tutorial Sample App&quot;
+  end
+  
+  test &quot;should get home&quot; do
+    get static_pages_home_url
+    assert_response :success
+    assert_select &quot;title&quot;, &quot;Home | #{@base_title}&quot;
+  end
+
+  test &quot;should get help&quot; do
+    get static_pages_help_url
+    assert_response :success
+    assert_select &quot;title&quot;, &quot;Help | #{@base_title}&quot;
+  end
+
+  test &quot;should get about&quot; do
+    get static_pages_about_url
+    assert_response :success
+    assert_select &quot;title&quot;, &quot;About | #{@base_title}&quot;
+  end  
+</code></pre>
+
+<ul>
+<li>in the layouts/app file replace the &#8216;title&#8217;</li>
+</ul>
+
+<pre><code>&lt;title&gt;&lt;%= yield(:title) %&gt; | Ruby on Rails Tutorial Sample App&lt;/title&gt;
+</code></pre>
+
+<ul>
+<li>in each of the static pages, respectively, add the code, changing the title based on the page</li>
+</ul>
+
+<pre><code>&lt;% provide(:title, &quot;Home&quot;) %&gt;
+</code></pre>
+
+<ul>
+<li>rails test: everything should pass</li>
+<li>** NOTE ON THE STUFF IN THE HEAD SECTION **</li>
+</ul>
+
+<pre><code>It’s also worth noting that the default Rails layout includes several additional lines:
+
+&lt;%= csrf_meta_tags %&gt;
+&lt;%= stylesheet_link_tag ... %&gt;
+&lt;%= javascript_include_tag &quot;application&quot;, ... %&gt;
+This code arranges to include the application stylesheet and JavaScript, which are part of the asset pipeline (Section 5.2.1), together with the Rails method csrf_meta_tags, which prevents cross-site request forgery (CSRF), a type of malicious web attack.
+</code></pre>
+
+<ul>
+<li>** EXERCISE: Make a Contact page for the sample app.16 Following the model in Listing 3.15, first write a test for the existence of a page at the URL /static_pages/contact by testing for the title “Contact | Ruby on Rails Tutorial Sample App”. Get your test to pass by following the same steps as when making the About page in Section 3.3.3, including filling the Contact page with the content from Listing 3.40.**</li>
+<li>first make the test to fail</li>
+</ul>
+
+<pre><code>  test &quot;should get contact&quot; do
+    get static_pages_contact_url
+    assert_response :success
+    assert_select &quot;title&quot;, &quot;Contact | #{@base_title}&quot;
+  end    
+</code></pre>
+
+<ul>
+<li>in routes</li>
+</ul>
+
+<pre><code>get  'static_pages/contact'
+</code></pre>
+
+<ul>
+<li>in static pages controller</li>
+</ul>
+
+<pre><code>  def contact
+  end  
+</code></pre>
+
+<ul>
+<li>create static_pages/contact with the content</li>
+</ul>
+
+<pre><code>&lt;% provide(:title, &quot;Contact&quot;) %&gt;
+&lt;h1&gt;Contact&lt;/h1&gt;
+&lt;p&gt;
+  Contact the Ruby on Rails Tutorial about the sample app at the
+  &lt;a href=&quot;http://www.railstutorial.org/contact&quot;&gt;contact page&lt;/a&gt;.
+&lt;/p&gt;
+</code></pre>
+
+<ul>
+<li>rails test: should pass</li>
+<li>in routes add root path</li>
+</ul>
+
+<pre><code>root 'static_pages#home'
+</code></pre>
+
+<ul>
+<li><strong>TEsting the root path</strong></li>
+<li>in test/cont/stat_pag_cont.test</li>
+</ul>
+
+<pre><code>  test &quot;should get root&quot; do
+    get root_url
+    assert_response :success
+  end
+</code></pre>
+
+<p>** 3.6 Advanced testing setup</p>
+
+<ul>
+<li>using minitest-reporters gem, we did that above,</li>
+<li>in the test/test_helper, add the lines</li>
+</ul>
+
+<pre><code>require 'rails/test_help'
+require &quot;minitest/reporters&quot;
+</code></pre>
+
+<ul>
+<li>using guard gem</li>
+</ul>
+
+<pre><code>One annoyance associated with using the rails test command is having to switch to the command line and run the tests by hand. To avoid this inconvenience, we can use Guard to automate the running of the tests. Guard monitors changes in the filesystem so that, for example, when we change the static_pages_controller_test.rb file, only those tests get run. Even better, we can configure Guard so that when, say, the home.html.erb file is modified, the static_pages_controller_test.rb automatically runs.
+</code></pre>
+
+<ul>
+<li>bundle exec guard init</li>
+<li><strong>He recommends using the guardfile version from his site</strong></li>
+<li><a href="https://bitbucket.org/railstutorial/sample_app_4th_ed/raw/289fcb83f1cd72b51c05fe9319277d590d51f0d2/Guardfile">from here</a></li>
+<li>copy and paste to the file sample_app/guardfile</li>
+<li>add to .gitignore</li>
+</ul>
+
+<pre><code># Ignore Spring files.
+/spring/*.pid
+</code></pre>
+
+<ul>
+<li><p>bundle exec guard</p></li>
+<li><p><a href="https://github.com/guard/guard">using Guard github</a></p></li>
+<li><p><a href="https://github.com/guard/guard">Guard wiki</a></p></li>
+<li><p>** Unix processes - problems with &#8216;Spring&#8217; **</p></li>
+</ul>
+
+<pre><code>Box 3.4. Unix processes
+On Unix-like systems such as Linux and macOS, user and system tasks each take place within a well-defined container called a process. To see all the processes on your system, you can use the ps command with the aux options:
+
+  $ ps aux
+To filter the processes by type, you can run the results of ps through the grep pattern-matcher using a Unix pipe |:
+
+  $ ps aux | grep spring
+  ec2-user 12241 0.3 0.5 589960 178416 ? Ssl Sep20 1:46
+  spring app | sample_app | started 7 hours ago
+The result shown gives some details about the process, but the most important thing is the first number, which is the process id, or pid. To eliminate an unwanted process, use the kill command to issue the Unix termination signal (which happens to be 15) to the pid:
+
+  $ kill -15 12241
+This is the technique I recommend for killing individual processes, such as a rogue Rails server (with the pid found via ps aux | grep server), but sometimes it’s convenient to kill all the processes matching a particular process name, such as when you want to kill all the spring processes gunking up your system. In this particular case, you should first try stopping the processes with the spring command itself:
+
+  $ spring stop
+Sometimes this doesn’t work, though, and you can kill all the processes with name spring using the pkill command as follows:
+
+  $ pkil
+  - l -15 -f spring
+Any time something isn’t behaving as expected or a process appears to be frozen, it’s a good idea to run ps aux to see what’s going on, and then run kill -15 &lt;pid&gt; or pkill -15 -f &lt;name&gt; to clear things up.
+</code></pre>
+
+<h2 id="chapter4-railsflavoredruby">Chapter 4 - rails flavored Ruby</h2>
+
+<ul>
+<li>git checkout -b rails-flavored-ruby</li>
+<li>** adding a &#8216;base title&#8217;, for the pages in case there is no &#8216;title&#8217; set</li>
+<li>in the app/helpers/app_helper add</li>
+</ul>
+
+<pre><code>  # Returns the full title on a per-page basis.
+  def full_title(page_title = '')
+    base_title = &quot;Ruby on Rails Tutorial Sample App&quot;
+    if page_title.empty?
+      base_title
+    else
+      page_title + &quot; | &quot; + base_title
+    end
+  end
+</code></pre>
+
+<ul>
+<li>in layouts/app replace &#8216;title&#8217; with</li>
+</ul>
+
+<pre><code>&lt;title&gt;&lt;%= full_title(yield(:title)) %&gt;&lt;/title&gt;
+</code></pre>
+
+<ul>
+<li>update stat_pag_con_test home test with</li>
+</ul>
+
+<pre><code>  test &quot;should get home&quot; do
+    get static_pages_home_url
+    assert_response :success
+    assert_select &quot;title&quot;, &quot;#{@base_title}&quot;
+  end
+</code></pre>
+
+<ul>
+<li>rails test: fails 1</li>
+<li>get rid of the &#8216;provide&#8217;, from the home file</li>
+<li>rails test: pass
+= **<a href="https://www.railstutorial.org/book/rails_flavored_ruby">For more reference here</a> **</li>
+</ul>
+
+<h2 id="chapter5-fillinginthelayout">Chapter 5 - filling in the layout</h2>
+
+<ul>
+<li>update the layouts/app file</li>
+</ul>
+
+<pre><code>&lt;!DOCTYPE html&gt;
+&lt;html&gt;
+  &lt;head&gt;
+    &lt;title&gt;&lt;%= full_title(yield(:title)) %&gt;&lt;/title&gt;
+    &lt;%= csrf_meta_tags %&gt;
+    &lt;%= stylesheet_link_tag    'application', media: 'all',
+                                              'data-turbolinks-track': 'reload' %&gt;
+    &lt;%= javascript_include_tag 'application', 'data-turbolinks-track': 'reload' %&gt;
+    &lt;!--[if lt IE 9]&gt;
+      &lt;script src=&quot;//cdnjs.cloudflare.com/ajax/libs/html5shiv/r29/html5.min.js&quot;&gt;
+      &lt;/script&gt;
+    &lt;![endif]--&gt;
+  &lt;/head&gt;
+  &lt;body&gt;
+    &lt;header class=&quot;navbar navbar-fixed-top navbar-inverse&quot;&gt;
+      &lt;div class=&quot;container&quot;&gt;
+        &lt;%= link_to &quot;sample app&quot;, '#', id: &quot;logo&quot; %&gt;
+        &lt;nav&gt;
+          &lt;ul class=&quot;nav navbar-nav navbar-right&quot;&gt;
+            &lt;li&gt;&lt;%= link_to &quot;Home&quot;,   '#' %&gt;&lt;/li&gt;
+            &lt;li&gt;&lt;%= link_to &quot;Help&quot;,   '#' %&gt;&lt;/li&gt;
+            &lt;li&gt;&lt;%= link_to &quot;Log in&quot;, '#' %&gt;&lt;/li&gt;
+          &lt;/ul&gt;
+        &lt;/nav&gt;
+      &lt;/div&gt;
+    &lt;/header&gt;
+    &lt;div class=&quot;container&quot;&gt;
+      &lt;%= yield %&gt;
+    &lt;/div&gt;
+  &lt;/body&gt;
+&lt;/html&gt;
+</code></pre>
+
+<ul>
+<li>update home page</li>
+</ul>
+
+<pre><code>&lt;div class=class=&quot;center jumbotron&quot;&quot;center jumbotron&quot;&gt;
+  &lt;h1&gt;Welcome to the Sample AppWelcome to the Sample App&lt;/h1&gt;
+  &lt;h2&gt;
+    This is the home page for the
+         This is the home page for the   &lt;a href=&quot;http://www.railstutorial.org/&quot;&gt;Ruby on Rails Tutorial&lt;/a&gt;
+    sample application.
+  &lt;/h2&gt;
+
+  &lt;%= link_to &quot;Sign up now!&quot;, '#', class: &quot;btn btn-lg btn-primary&quot; %&gt;
+&lt;/div&gt;
+
+&lt;%= link_to image_tag(&quot;rails.png&quot;, alt: &quot;Rails logo&quot;),
+            'http://rubyonrails.org/' %&gt;
+</code></pre>
+
+<ul>
+<li>add the bootstrap gem</li>
+</ul>
+
+<pre><code>gem 'bootstrap-sass', '3.3.7'
+</code></pre>
+
+<ul>
+<li>bundle</li>
+<li>create the file custom.scss and add</li>
+</ul>
+
+<pre><code>@import &quot;bootstrap-sprockets&quot;;
+@import &quot;bootstrap&quot;;
+
+/* universal */
+
+body {
+  padding-top: 60px;
+}
+
+section {
+  overflow: auto;
+}
+
+textarea {
+  resize: vertical;
+}
+
+.center {
+  text-align: center;
+}
+
+.center h1 {
+  margin-bottom: 10px;
+}
+
+/* typography */
+
+h1, h2, h3, h4, h5, h6 {
+  line-height: 1;
+}
+
+h1 {
+  font-size: 3em;
+  letter-spacing: -2px;
+  margin-bottom: 30px;
+  text-align: center;
+}
+
+h2 {
+  font-size: 1.2em;
+  letter-spacing: -1px;
+  margin-bottom: 30px;
+  text-align: center;
+  font-weight: normal;
+  color: #777;
+}
+
+p {
+  font-size: 1.1em;
+  line-height: 1.7em;
+}
+
+/* header */
+
+#logo {
+  float: left;
+  margin-right: 10px;
+  font-size: 1.7em;
+  color: #fff;
+  text-transform: uppercase;
+  letter-spacing: -1px;
+  padding-top: 9px;
+  font-weight: bold;
+}
+
+#logo:hover {
+  color: #fff;
+  text-decoration: none;
+}
+</code></pre>
+
+<ul>
+<li>create the layous/shim and layouts/header partials</li>
+<li>and put in layouts/app, in respective places</li>
+</ul>
+
+<pre><code>&lt;%= render 'layouts/shim' %&gt;
+&lt;%= render 'layouts/header' %&gt;
+</code></pre>
+
+<ul>
+<li>create the footer partial as well</li>
+</ul>
+
+<pre><code>&lt;footer class=&quot;footer&quot;&gt;
+  &lt;small&gt;
+    The &lt;a href=&quot;http://www.railstutorial.org/&quot;&gt;Ruby on Rails Tutorial&lt;/a&gt;
+    by &lt;a href=&quot;http://www.michaelhartl.com/&quot;&gt;Michael Hartl&lt;/a&gt;
+  &lt;/small&gt;
+  &lt;nav&gt;
+    &lt;ul&gt;
+      &lt;li&gt;&lt;%= link_to &quot;About&quot;,   '#' %&gt;&lt;/li&gt;
+      &lt;li&gt;&lt;%= link_to &quot;Contact&quot;, '#' %&gt;&lt;/li&gt;
+      &lt;li&gt;&lt;a href=&quot;http://news.railstutorial.org/&quot;&gt;News&lt;/a&gt;&lt;/li&gt;
+    &lt;/ul&gt;
+  &lt;/nav&gt;
+&lt;/footer&gt;
+</code></pre>
+
+<ul>
+<li>and add footer render</li>
+</ul>
+
+<pre><code>&lt;%= render 'layouts/footer' %&gt;
+</code></pre>
+
+<ul>
+<li>add footer css to custom</li>
+</ul>
+
+<pre><code>/* footer */
+
+footer {
+  margin-top: 45px;
+  padding-top: 5px;
+  border-top: 1px solid #eaeaea;
+  color: #777;
+}
+
+footer a {
+  color: #555;
+}
+
+footer a:hover {
+  color: #222;
+}
+
+footer small {
+  float: left;
+}
+
+footer ul {
+  float: right;
+  list-style: none;
+}
+
+footer ul li {
+  float: left;
+  margin-left: 15px;
+}
+</code></pre>
+
+<ul>
+<li>create the rails_default partial</li>
+</ul>
+
+<pre><code>&lt;%= csrf_meta_tags %&gt;
+&lt;%= stylesheet_link_tag    'application', media: 'all',
+                                          'data-turbolinks-track': 'reload' %&gt;
+&lt;%= javascript_include_tag 'application', 'data-turbolinks-track': 'reload' %&gt;  
+</code></pre>
+
+<h2 id="-andaddtherender">- and add the render</h2>
+
+<pre><code>&lt;%= render 'layouts/rails_default' %&gt;
+</code></pre>
+
+<ul>
+<li>update the custom.scss with sass and mixins</li>
+</ul>
+
+<pre><code>@import &quot;bootstrap-sprockets&quot;;
+@import &quot;bootstrap&quot;;
+
+/* mixins, variables, etc. */
+
+$gray-medium-light: #eaeaea;
+
+/* universal */
+
+body {
+  padding-top: 60px;
+}
+
+section {
+  overflow: auto;
+}
+
+textarea {
+  resize: vertical;
+}
+
+.center {
+  text-align: center;
+  h1 {
+    margin-bottom: 10px;
+  }
+}
+
+/* typography */
+
+h1, h2, h3, h4, h5, h6 {
+  line-height: 1;
+}
+
+h1 {
+  font-size: 3em;
+  letter-spacing: -2px;
+  margin-bottom: 30px;
+  text-align: center;
+}
+
+h2 {
+  font-size: 1.2em;
+  letter-spacing: -1px;
+  margin-bottom: 30px;
+  text-align: center;
+  font-weight: normal;
+  color: $gray-light;
+}
+
+p {
+  font-size: 1.1em;
+  line-height: 1.7em;
+}
+
+
+/* header */
+
+#logo {
+  float: left;
+  margin-right: 10px;
+  font-size: 1.7em;
+  color: white;
+  text-transform: uppercase;
+  letter-spacing: -1px;
+  padding-top: 9px;
+  font-weight: bold;
+  &amp;:hover {
+    color: white;
+    text-decoration: none;
+  }
+}
+
+/* footer */
+
+footer {
+  margin-top: 45px;
+  padding-top: 5px;
+  border-top: 1px solid $gray-medium-light;
+  color: $gray-light;
+  a {
+    color: $gray;
+    &amp;:hover {
+      color: $gray-darker;
+    }
+  }
+  small {
+    float: left;
+  }
+  ul {
+    float: right;
+    list-style: none;
+    li {
+      float: left;
+      margin-left: 15px;
+    }
+  }
+}
+</code></pre>
+
+<ul>
+<li>**changing the default static pages links **</li>
+<li>update the routes file</li>
+</ul>
+
+<pre><code>  root 'static_pages#home'
+  get  '/help',    to: 'static_pages#help'
+  get  '/about',   to: 'static_pages#about'
+  get  '/contact', to: 'static_pages#contact'
+</code></pre>
+
+<ul>
+<li>we need to change the tests,</li>
+</ul>
+
+<pre><code>require 'test_helper'
+
+class StaticPagesControllerTest &lt; ActionDispatch::IntegrationTest
+
+  def setup
+    @base_title = &quot;Ruby on Rails Tutorial Sample App&quot;
+  end
+
+  test &quot;should get root&quot; do
+    get root_path
+    assert_response :success
+  end
+
+  test &quot;should get help&quot; do
+    get help_path
+    assert_response :success
+    assert_select &quot;title&quot;, &quot;Help | #{@base_title}&quot;
+  end
+
+  test &quot;should get about&quot; do
+    get about_path
+    assert_response :success
+    assert_select &quot;title&quot;, &quot;About | #{@base_title}&quot;
+  end  
+
+  test &quot;should get contact&quot; do
+    get contact_path
+    assert_response :success
+    assert_select &quot;title&quot;, &quot;Contact | #{@base_title}&quot;
+  end    
+
+end
+</code></pre>
+
+<ul>
+<li>** It’s possible to use a named route other than the default using the as: option. Drawing inspiration from this famous Far Side comic strip, change the route for the Help page to use helf (Listing 5.29).**</li>
+<li>in routes you would do</li>
+</ul>
+
+<pre><code>get  '/help',    to: 'static_pages#help', as: 'helf'
+</code></pre>
+
+<ul>
+<li>then the link would be</li>
+</ul>
+
+<pre><code>helf_path
+</code></pre>
+
+<ul>
+<li>update the links in the header file</li>
+</ul>
+
+<pre><code>&lt;header class=&quot;navbar navbar-fixed-top navbar-inverse&quot;&gt;
+  &lt;div class=&quot;container&quot;&gt;
+    &lt;%= link_to &quot;sample app&quot;, root_path, id: &quot;logo&quot; %&gt;
+    &lt;nav&gt;
+      &lt;ul class=&quot;nav navbar-nav navbar-right&quot;&gt;
+        &lt;li&gt;&lt;%= link_to &quot;Home&quot;,    root_path %&gt;&lt;/li&gt;
+        &lt;li&gt;&lt;%= link_to &quot;Help&quot;,    help_path %&gt;&lt;/li&gt;
+        &lt;li&gt;&lt;%= link_to &quot;Log in&quot;, '#' %&gt;&lt;/li&gt;
+      &lt;/ul&gt;
+    &lt;/nav&gt;
+  &lt;/div&gt;
+&lt;/header&gt;
+</code></pre>
+
+<ul>
+<li>update the footer links</li>
+</ul>
+
+<pre><code>&lt;li&gt;&lt;%= link_to &quot;About&quot;,   about_path %&gt;&lt;/li&gt;
+&lt;li&gt;&lt;%= link_to &quot;Contact&quot;, contact_path %&gt;&lt;/li&gt;
+</code></pre>
+
+<ul>
+<li>** link tests using an integration test **</li>
+<li>rails generate integration_test site_layout and add the code</li>
+</ul>
+
+<pre><code>  test &quot;layout links&quot; do
+    get root_path
+    assert_template 'static_pages/home'
+    assert_select &quot;a[href=?]&quot;, root_path, count: 2
+    assert_select &quot;a[href=?]&quot;, help_path
+    assert_select &quot;a[href=?]&quot;, about_path
+    assert_select &quot;a[href=?]&quot;, contact_path
+  end
+</code></pre>
+
+<ul>
+<li>to test only this test</li>
+</ul>
+
+<pre><code>rails test:integration
+</code></pre>
+
+<ul>
+<li><strong>examples of other &#8216;assert_selects&#8217;</strong></li>
+</ul>
+
+<pre><code>Code    Matching HTML
+assert_select &quot;div&quot; &lt;div&gt;foobar&lt;/div&gt;
+assert_select &quot;div&quot;, &quot;foobar&quot;   &lt;div&gt;foobar&lt;/div&gt;
+assert_select &quot;div.nav&quot; &lt;div class=&quot;nav&quot;&gt;foobar&lt;/div&gt;
+assert_select &quot;div#profile&quot; &lt;div id=&quot;profile&quot;&gt;foobar&lt;/div&gt;
+assert_select &quot;div[name=yo]&quot;    &lt;div name=&quot;yo&quot;&gt;hey&lt;/div&gt;
+assert_select &quot;a[href=?]&quot;, '/', count: 1    &lt;a href=&quot;/&quot;&gt;foo&lt;/a&gt;
+assert_select &quot;a[href=?]&quot;, '/', text: &quot;foo&quot; &lt;a href=&quot;/&quot;&gt;foo&lt;/a&gt;
+</code></pre>
+
+<ul>
+<li>** user signup **</li>
+<li>rails generate controller Users new</li>
+<li>edit the test/cont/user_con test to look for signup_path</li>
+</ul>
+
+<pre><code>  test &quot;should get new&quot; do
+    get signup_path
+    assert_response :success
+  end
+</code></pre>
+
+<ul>
+<li>edit routes to be</li>
+</ul>
+
+<pre><code>get 'signup',    to: 'users#new'
+</code></pre>
+
+<ul>
+<li>add a link test in the site_layout test</li>
+</ul>
+
+<pre><code>assert_select &quot;a[href=?]&quot;, signup_path
+</code></pre>
+
+<ul>
+<li>update the signup link in the home page</li>
+</ul>
+
+<pre><code>&lt;%= link_to &quot;Sign up now!&quot;, signup_path, class: &quot;btn btn-lg btn-primary&quot; %&gt;
+</code></pre>
+
+<ul>
+<li>add the test in the user_controller</li>
+</ul>
+
+<pre><code>  test &quot;should get signup&quot; do
+    get signup_path
+    assert_response :success
+    assert_select &quot;title&quot;, &quot;Signup | #{@base_title}&quot;
+  end  
+</code></pre>
+
+<ul>
+<li>update the file users/new</li>
+</ul>
+
+<pre><code>&lt;% provide(:title, 'Sign up') %&gt;
+&lt;h1&gt;Sign up&lt;/h1&gt;
+&lt;p&gt;This will be a signup page for new users.&lt;/p&gt;
+</code></pre>
+
+<ul>
+<li>move from static_pag_con test, to test_helper</li>
+</ul>
+
+<pre><code>  def setup
+    @base_title = &quot;Ruby on Rails Tutorial Sample App&quot;
+  end
+</code></pre>
+
+<ul>
+<li>that way all controllers have access to that</li>
+</ul>
+
+<h2 id="chapter6-modelingusers">Chapter 6 - modeling users</h2>
+
+<ul>
+<li>rails generate model User name:string email:string</li>
+<li>rails db:migrate</li>
+<li>** Most migrations (including all the ones in this tutorial) are reversible, which means we can “migrate down” and undo them with a single command, called db:rollback: **</li>
+</ul>
+
+<pre><code>rails db:rollback
+</code></pre>
+
+<ul>
+<li>rails console &#8211;sandbox</li>
+<li>User.new</li>
+<li>user = User.new(name: &#8220;Michael Hartl&#8221;, email: &#8220;mhartl@example.com&#8221;)</li>
+<li>user.valid?</li>
+<li>user.save</li>
+<li>foo = User.create(name: &#8220;Foo&#8221;, email: &#8220;foo@bar.com&#8221;)</li>
+<li>foo.destroy</li>
+<li>** finding users **</li>
+<li>User.find(1)</li>
+<li>User.find_by(email: &#8220;mhartl@example.com&#8221;)</li>
+<li>User.first</li>
+<li>User.all</li>
+<li>User.find_by_name(&#8216;Michael Hartl&#8217;) [legacy apps]</li>
+<li>** If you’re worried that find_by will be inefficient if there are a large number of users, you’re ahead of the game; we’ll cover this issue, and its solution via database indices, in Section 6.2.5. **</li>
+<li>** updating user objects **</li>
+<li>user</li>
+<li>user.email = &#8220;mhartl@example.net&#8221;</li>
+<li>user.save</li>
+<li>user.update_attributes(name: &#8220;The Dude&#8221;, email: &#8220;dude@abides.org&#8221;)</li>
+<li>user.update_attribute(:name, &#8220;El Duderino&#8221;)</li>
+<li>user.update(created_at: 1.year.ago)</li>
+<li>** user validations **</li>
+<li>Our method will be to start with a valid model object, set one of its attributes to something we want to be invalid, and then test that it in fact is invalid. As a safety net, we’ll first write a test to make sure the initial model object is valid. This way, when the validation tests fail we’ll know it’s for the right reason (and not because the initial object was invalid in the first place).</li>
+<li>update the test/modes/user test</li>
+</ul>
+
+<pre><code>  def setup
+    @user = User.new(name: &quot;Example User&quot;, email: &quot;user@example.com&quot;)
+  end
+
+  test &quot;should be valid&quot; do
+    assert @user.valid?
+  end
+</code></pre>
+
+<ul>
+<li>rails test:models</li>
+<li>** validating presence **</li>
+<li>update user test</li>
+</ul>
+
+<pre><code>require 'test_helper'
+
+class UserTest &lt; ActiveSupport::TestCase
+  def setup
+    @user = User.new(name: &quot;Example User&quot;, email: &quot;user@example.com&quot;)
+  end
+
+  test &quot;should be valid&quot; do
+    assert @user.valid?
+  end
+
+  test &quot;name should be present&quot; do
+    @user.name = &quot;     &quot;
+    assert_not @user.valid?
+  end  
+end
+</code></pre>
+
+<ul>
+<li>rails test should fail, because is not, not valid</li>
+<li>update user.rb</li>
+</ul>
+
+<pre><code> validates :name, presence: true
+</code></pre>
+
+<ul>
+<li>rails console &#8211;sandbox</li>
+<li>user = User.new(name: &#8220;&#8221;, email: &#8220;mhartl@example.com&#8221;)</li>
+<li>user.valid?</li>
+<li>user.errors.full_messages</li>
+<li>update the users test for email</li>
+</ul>
+
+<pre><code>  test &quot;email should be present&quot; do
+    @user.email = &quot;     &quot;
+    assert_not @user.valid?
+  end  
+</code></pre>
+
+<ul>
+<li>add to user.rb</li>
+</ul>
+
+<pre><code>validates :email, presence: true
+</code></pre>
+
+<ul>
+<li>** length validation **</li>
+<li>update user test</li>
+</ul>
+
+<pre><code>  test &quot;name should not be too long&quot; do
+    @user.name = &quot;a&quot; * 51
+    assert_not @user.valid?
+  end
+
+  test &quot;email should not be too long&quot; do
+    @user.email = &quot;a&quot; * 244 + &quot;@example.com&quot;
+    assert_not @user.valid?
+  end
+</code></pre>
+
+<ul>
+<li>update the user.rb for length</li>
+</ul>
+
+<pre><code>  validates :name,  presence: true, length: { maximum: 50 }
+  validates :email, presence: true, length: { maximum: 255 }
+</code></pre>
+
+<ul>
+<li>** format validation **</li>
+<li>Neither the tests nor the validation will be exhaustive, just good enough to accept most valid email addresses and reject most invalid ones. We’ll start with a couple of tests involving collections of valid and invalid addresses. To make these collections, it’s worth knowing about the useful %w[] technique for making arrays of strings, as seen in this console session:</li>
+<li>%w[foo bar baz]</li>
+<li>addresses = %w[USER@foo.COM THE_US-ER@foo.bar.org first.last@foo.jp]</li>
+<li>addresses.each do |address|</li>
+<li>puts address</li>
+<li>end</li>
+<li>update the user test</li>
+</ul>
+
+<pre><code>  test &quot;email validation should accept valid addresses&quot; do
+    valid_addresses = %w[user@example.com USER@foo.COM A_US-ER@foo.bar.org
+                         first.last@foo.jp alice+bob@baz.cn]
+    valid_addresses.each do |valid_address|
+      @user.email = valid_address
+      assert @user.valid?, &quot;#{valid_address.inspect} should be valid&quot;
+    end
+  end
+</code></pre>
+
+<ul>
+<li>add a test for invalid addresses</li>
+</ul>
+
+<pre><code>  test &quot;email validation should reject invalid addresses&quot; do
+    invalid_addresses = %w[user@example,com user_at_foo.org user.name@example.
+                           foo@bar_baz.com foo@bar+baz.com]
+    invalid_addresses.each do |invalid_address|
+      @user.email = invalid_address
+      assert_not @user.valid?, &quot;#{invalid_address.inspect} should be invalid&quot;
+    end
+  end
+</code></pre>
+
+<ul>
+<li>** regex helper **</li>
+<li><a href="http://www.rubular.com/">or the website</a></li>
+</ul>
+
+<pre><code>Expression  Meaning
+/\A[\w+\-.]+@[a-z\d\-.]+\.[a-z]+\z/i    full regex
+/   start of regex
+\A  match start of a string
+[\w+\-.]+   at least one word character, plus, hyphen, or dot
+@   literal “at sign”
+[a-z\d\-.]+ at least one letter, digit, hyphen, or dot
+\.  literal dot
+[a-z]+  at least one letter
+\z  match end of a string
+/   end of regex
+i   case-insensitive
+</code></pre>
+
+<ul>
+<li>update user.rb</li>
+</ul>
+
+<pre><code>  validates :name,  presence: true, length: { maximum: 50 }
+  VALID_EMAIL_REGEX = /\A[\w+\-.]+@[a-z\d\-]+(\.[a-z\d\-]+)*\.[a-z]+\z/i
+  validates :email, presence: true, length: { maximum: 255 },
+                    format: { with: VALID_EMAIL_REGEX }
+</code></pre>
+
+<ul>
+<li>** uniqueness **</li>
+<li>update user test</li>
+</ul>
+
+<pre><code>  test &quot;email addresses should be unique&quot; do
+    duplicate_user = @user.dup
+    duplicate_user.email = @user.email.upcase    
+    @user.save
+    assert_not duplicate_user.valid?
+  end
+</code></pre>
+
+<ul>
+<li>update user.rb</li>
+</ul>
+
+<pre><code>  validates :name,  presence: true, length: { maximum: 50 }
+  VALID_EMAIL_REGEX = /\A[\w+\-.]+@[a-z\d\-.]+\.[a-z]+\z/i
+  validates :email, presence: true, length: { maximum: 255 },
+                    format: { with: VALID_EMAIL_REGEX },
+                    uniqueness: { case_sensitive: false }
+</code></pre>
+
+<ul>
+<li>** a user can submit twice and mess this uniqueness up**</li>
+<li>If the above sequence seems implausible, believe me, it isn’t: it can happen on any Rails website with significant traffic (which I once learned the hard way). Luckily, the solution is straightforward to implement: we just need to enforce uniqueness at the database level as well as at the model level. Our method is to create a database index on the email column (Box 6.2), and then require that the index be unique.</li>
+<li>** indexing the email in the database for quick reference **</li>
+<li>rails generate migration add_index_to_users_email</li>
+<li>update the migration file</li>
+</ul>
+
+<pre><code>  def change
+    add_index :users, :email, unique: true
+  end
+</code></pre>
+
+<ul>
+<li>rails db:migrate</li>
+<li>** test should fail because fixtures were added that now fail the tests **</li>
+<li>remove the content in test/fixtures/users.yml</li>
+</ul>
+
+<pre><code>
+# one:
+#   name: MyString
+#   email: MyString
+
+# two:
+#   name: MyString
+#   email: MyString
+</code></pre>
+
+<ul>
+<li>** adding a callback before we save the email address **</li>
+<li>To avoid this incompatibility, we’ll standardize on all lower-case addresses, converting “Foo@ExAMPle.CoM” to “foo@example.com” before saving it to the database. The way to do this is with a callback, which is a method that gets invoked at a particular point in the lifecycle of an Active Record object. In the present case, that point is before the object is saved, so we’ll use a before_save callback to downcase the email attribute before saving the user.17 The result appears in Listing 6.32. (This is just a first implementation; we’ll discuss this subject again in Section 11.1, where we’ll use the preferred method reference convention for defining callbacks.)</li>
+<li>in the user.rb</li>
+</ul>
+
+<pre><code>  before_save { email.downcase! }
+</code></pre>
+
+<ul>
+<li>adding the test to user test</li>
+</ul>
+
+<pre><code>  test &quot;email addresses should be saved as lower-case&quot; do
+    mixed_case_email = &quot;Foo@ExAMPle.CoM&quot;
+    @user.email = mixed_case_email
+    @user.save
+    assert_equal mixed_case_email.downcase, @user.reload.email
+  end
+</code></pre>
+
+<ul>
+<li>** adding the password ability **</li>
+<li>in user.rb</li>
+</ul>
+
+<pre><code>has_secure_password
+</code></pre>
+
+<ul>
+<li>rails generate migration add_password_digest_to_users password_digest:string</li>
+<li>rails db:migrate</li>
+<li>add the bcrypt gem</li>
+<li>bundle</li>
+<li>the tests should be failing because of the password</li>
+<li>update the user test with password attributes</li>
+</ul>
+
+<pre><code>  def setup
+    @user = User.new(name: &quot;Example User&quot;, email: &quot;user@example.com&quot;,
+                     password: &quot;foobar&quot;, password_confirmation: &quot;foobar&quot;)
+  end
+</code></pre>
+
+<ul>
+<li>the tests should be passing</li>
+<li>in user test add the password tests</li>
+</ul>
+
+<pre><code>  test &quot;password should be present (nonblank)&quot; do
+    @user.password = @user.password_confirmation = &quot; &quot; * 6
+    assert_not @user.valid?
+  end
+
+  test &quot;password should have a minimum length&quot; do
+    @user.password = @user.password_confirmation = &quot;a&quot; * 5
+    assert_not @user.valid?
+  end
+</code></pre>
+
+<ul>
+<li>add to the user.rb</li>
+</ul>
+
+<pre><code>validates :password, presence: true, length: { minimum: 6 }
+</code></pre>
+
+<ul>
+<li>rails c, to create an actual user</li>
+<li>User.create(name: &#8220;Michael Hartl&#8221;, email: &#8220;mhartl@example.com&#8221;, password: &#8220;foobar&#8221;, password_confirmation: &#8220;foobar&#8221;)</li>
+<li>u = User.first</li>
+<li>u.password_digest</li>
+<li>u.authenticate(&#8220;foobaz&#8221;) to test the authentication</li>
+<li>!!u.authenticate(&#8220;foobar&#8221;)</li>
+<li>** &#8220;Recalling from Section 4.2.3 that !! converts an object to its corresponding boolean value, we can see that user.authenticate does the job nicely:&#8221; **</li>
+</ul>
+
+<h2 id="chapter7-signup">Chapter 7 - Sign up</h2>
+
+<ul>
+<li>** This displays some useful information about each page using the built-in debug method and params variable (which we’ll learn more about in Section 7.1.2).**</li>
+<li>in layouts/app add the debug line</li>
+</ul>
+
+<pre><code>    &lt;div class=&quot;container&quot;&gt;
+      &lt;%= yield %&gt;
+      &lt;%= render 'layouts/footer' %&gt;
+      &lt;%= debug(params) if Rails.env.development? %&gt;
+    &lt;/div&gt;
+</code></pre>
+
+<ul>
+<li>different rails console environments</li>
+</ul>
+
+<pre><code>Box 7.1. Rails environments
+Rails comes equipped with three environments: test, development, and production. The default environment for the Rails console is development:
+
+  $ rails console
+  Loading development environment
+  &gt;&gt; Rails.env
+  =&gt; &quot;development&quot;
+  &gt;&gt; Rails.env.development?
+  =&gt; true
+  &gt;&gt; Rails.env.test?
+  =&gt; false
+As you can see, Rails provides a Rails object with an env attribute and associated environment boolean methods, so that, for example, Rails.env.test? returns true in a test environment and false otherwise.
+
+If you ever need to run a console in a different environment (to debug a test, for example), you can pass the environment as a parameter to the console script:
+
+  $ rails console test
+  Loading test environment
+  &gt;&gt; Rails.env
+  =&gt; &quot;test&quot;
+  &gt;&gt; Rails.env.test?
+  =&gt; true
+As with the console, development is the default environment for the Rails server, but you can also run it in a different environment:
+
+  $ rails server --environment production
+If you view your app running in production, it won’t work without a production database, which we can create by running rails db:migrate in production:
+
+  $ rails db:migrate RAILS_ENV=production
+(I find it confusing that the idiomatic commands to run the console, server, and migrate commands in non-default environments use different syntax, which is why I bothered showing all three. It’s worth noting, though, that preceding any of them with RAILS_ENV=&lt;env&gt; will also work, as in RAILS_ENV=production rails server).
+
+By the way, if you have deployed your sample app to Heroku, you can see its environment using heroku run rails console:
+
+  $ heroku run rails console
+  &gt;&gt; Rails.env
+  =&gt; &quot;production&quot;
+  &gt;&gt; Rails.env.production?
+  =&gt; true
+Naturally, since Heroku is a platform for production sites, it runs each application in a production environment.
+</code></pre>
+
+<ul>
+<li>add some css for the debug section</li>
+</ul>
+
+<pre><code>@mixin box_sizing {
+  -moz-box-sizing:    border-box;
+  -webkit-box-sizing: border-box;
+  box-sizing:         border-box;
+}
+/* miscellaneous */
+
+.debug_dump {
+  clear: both;
+  float: left;
+  width: 100%;
+  margin-top: 45px;
+  @include box_sizing;
+}
+</code></pre>
+
+<ul>
+<li>in routes add user resources</li>
+</ul>
+
+<pre><code>resources :users
+</code></pre>
+
+<ul>
+<li>create the file users/show</li>
+</ul>
+
+<pre><code>&lt;%= @user.name %&gt;, &lt;%= @user.email %&gt;
+</code></pre>
+
+<ul>
+<li>in users controller</li>
+</ul>
+
+<pre><code>  def show
+    @user = User.find(params[:id])
+  end
+</code></pre>
+
+<ul>
+<li>** if you haven&#8217;t restarted server after bcrypt install, restart it **</li>
+<li>go to localhost/users/1 and we should see the first user</li>
+<li>** using debugger **</li>
+<li>in the users controller update the show action</li>
+</ul>
+
+<pre><code>  def show
+    @user = User.find(params[:id])
+    debugger
+  end
+</code></pre>
+
+<ul>
+<li>in the server terminal, debugger line</li>
+</ul>
+
+<pre><code>(byebug) @user.name
+&quot;Example User&quot;
+(byebug) @user.email
+&quot;example@railstutorial.org&quot;
+(byebug) params[:id]
+&quot;1&quot;
+</code></pre>
+
+<ul>
+<li>ctrl-D to get out of it, comment out debugger in the show action</li>
+<li>** adding gravatar for user **</li>
+<li>update the users/show page</li>
+</ul>
+
+<pre><code>&lt;% provide(:title, @user.name) %&gt;
+&lt;h1&gt;
+  &lt;%= gravatar_for @user %&gt;
+  &lt;%= @user.name %&gt;
+&lt;/h1&gt;
+</code></pre>
+
+<ul>
+<li>in app/helpers/users helper</li>
+</ul>
+
+<pre><code>module UsersHelper
+  # Returns the Gravatar for the given user.
+  def gravatar_for(user, size: 80)
+    gravatar_id = Digest::MD5::hexdigest(user.email.downcase)
+    gravatar_url = &quot;https://secure.gravatar.com/avatar/#{gravatar_id}?s=#{size}&quot;
+    image_tag(gravatar_url, alt: user.name, class: &quot;gravatar&quot;)
+  end
+end
+</code></pre>
+
+<ul>
+<li>refresh the page</li>
+<li>update the user attribute to see the gravatar he controls</li>
+<li>in rails console</li>
+</ul>
+
+<pre><code>$ rails console
+&gt;&gt; user = User.first
+&gt;&gt; user.update_attributes(name: &quot;Example User&quot;,
+?&gt;                        email: &quot;example@railstutorial.org&quot;,
+?&gt;                        password: &quot;foobar&quot;,
+?&gt;                        password_confirmation: &quot;foobar&quot;)
+=&gt; true
+</code></pre>
+
+<ul>
+<li>update the show page with a sidebar</li>
+</ul>
+
+<pre><code>&lt;% provide(:title, @user.name) %&gt;
+&lt;div class=&quot;row&quot;&gt;
+  &lt;aside class=&quot;col-md-4&quot;&gt;
+    &lt;section class=&quot;user_info&quot;&gt;
+      &lt;h1&gt;
+        &lt;%= gravatar_for @user %&gt;
+        &lt;%= @user.name %&gt;
+      &lt;/h1&gt;
+    &lt;/section&gt;
+  &lt;/aside&gt;
+&lt;/div&gt;
+</code></pre>
+
+<ul>
+<li>update the css to include sidebar and gravatar</li>
+</ul>
+
+<pre><code>/* sidebar */
+
+aside {
+  section.user_info {
+    margin-top: 20px;
+  }
+  section {
+    padding: 10px 0;
+    margin-top: 20px;
+    &amp;:first-child {
+      border: 0;
+      padding-top: 0;
+    }
+    span {
+      display: block;
+      margin-bottom: 3px;
+      line-height: 1;
+    }
+    h1 {
+      font-size: 1.4em;
+      text-align: left;
+      letter-spacing: -1px;
+      margin-bottom: 3px;
+      margin-top: 0px;
+    }
+  }
+}
+
+.gravatar {
+  float: left;
+  margin-right: 10px;
+}
+
+.gravatar_edit {
+  margin-top: 15px;
+}
+</code></pre>
+
+<ul>
+<li>** Sign up form **</li>
+<li>in users controller, update the new action</li>
+</ul>
+
+<pre><code>  def new
+    @user = User.new
+  end
+</code></pre>
+
+<ul>
+<li>add the code to users/new</li>
+</ul>
+
+<pre><code>&lt;% provide(:title, 'Sign up') %&gt;
+&lt;h1&gt;Sign up&lt;/h1&gt;
+
+&lt;div class=&quot;row&quot;&gt;
+  &lt;div class=&quot;col-md-6 col-md-offset-3&quot;&gt;
+    &lt;%= form_for(@user) do |f| %&gt;
+      &lt;%= f.label :name %&gt;
+      &lt;%= f.text_field :name %&gt;
+
+      &lt;%= f.label :email %&gt;
+      &lt;%= f.email_field :email %&gt;
+
+      &lt;%= f.label :password %&gt;
+      &lt;%= f.password_field :password %&gt;
+
+      &lt;%= f.label :password_confirmation, &quot;Confirmation&quot; %&gt;
+      &lt;%= f.password_field :password_confirmation %&gt;
+
+      &lt;%= f.submit &quot;Create my account&quot;, class: &quot;btn btn-primary&quot; %&gt;
+    &lt;% end %&gt;
+  &lt;/div&gt;
+&lt;/div&gt;
+</code></pre>
+
+<ul>
+<li>and the css for the form</li>
+</ul>
+
+<pre><code>/* forms */
+
+input, textarea, select, .uneditable-input {
+  border: 1px solid #bbb;
+  width: 100%;
+  margin-bottom: 15px;
+  @include box_sizing;
+}
+
+input {
+  height: auto !important;
+}
+</code></pre>
+
+<ul>
+<li>** unsuccessful signups **</li>
+<li>update the new form to include error messages</li>
+</ul>
+
+<pre><code>&lt;% provide(:title, 'Sign up') %&gt;
+&lt;h1&gt;Sign up&lt;/h1&gt;
+
+&lt;div class=&quot;row&quot;&gt;
+  &lt;div class=&quot;col-md-6 col-md-offset-3&quot;&gt;
+    &lt;%= form_for(@user) do |f| %&gt;
+      &lt;%= render 'shared/error_messages' %&gt;
+
+      &lt;%= f.label :name %&gt;
+      &lt;%= f.text_field :name, class: 'form-control' %&gt;
+
+      &lt;%= f.label :email %&gt;
+      &lt;%= f.email_field :email, class: 'form-control' %&gt;
+
+      &lt;%= f.label :password %&gt;
+      &lt;%= f.password_field :password, class: 'form-control' %&gt;
+
+      &lt;%= f.label :password_confirmation, &quot;Confirmation&quot; %&gt;
+      &lt;%= f.password_field :password_confirmation, class: 'form-control' %&gt;
+
+      &lt;%= f.submit &quot;Create my account&quot;, class: &quot;btn btn-primary&quot; %&gt;
+    &lt;% end %&gt;
+  &lt;/div&gt;
+&lt;/div&gt;
+</code></pre>
+
+<ul>
+<li>create views/shared/error_messages partial</li>
+</ul>
+
+<pre><code>&lt;% if @user.errors.any? %&gt;
+  &lt;div id=&quot;error_explanation&quot;&gt;
+    &lt;div class=&quot;alert alert-danger&quot;&gt;
+      The form contains &lt;%= pluralize(@user.errors.count, &quot;error&quot;) %&gt;.
+    &lt;/div&gt;
+    &lt;ul&gt;
+    &lt;% @user.errors.full_messages.each do |msg| %&gt;
+      &lt;li&gt;&lt;%= msg %&gt;&lt;/li&gt;
+    &lt;% end %&gt;
+    &lt;/ul&gt;
+  &lt;/div&gt;
+&lt;% end %&gt;
+</code></pre>
+
+<ul>
+<li>add error css to custom.scss</li>
+</ul>
+
+<pre><code>#error_explanation {
+  color: red;
+  ul {
+    color: red;
+    margin: 0 0 30px 0;
+  }
+}
+
+.field_with_errors {
+  @extend .has-error;
+  .form-control {
+    color: $state-danger-text;
+  }
+}
+</code></pre>
+
+<ul>
+<li>in users controller, add create and private actions</li>
+</ul>
+
+<pre><code>  def create
+    @user = User.new(user_params)
+    if @user.save
+      # Handle a successful save.
+    else
+      render 'new'
+    end
+  end
+
+  private
+
+    def user_params
+      params.require(:user).permit(:name, :email, :password,
+                                   :password_confirmation)
+    end
+</code></pre>
+
+<ul>
+<li>** test for invalid form submissions **</li>
+<li>rails generate integration_test users_signup</li>
+</ul>
+
+<pre><code>  test &quot;invalid signup information&quot; do
+    get signup_path
+    assert_no_difference 'User.count' do
+      post users_path, params: { user: { name:  &quot;&quot;,
+                                         email: &quot;user@invalid&quot;,
+                                         password:              &quot;foo&quot;,
+                                         password_confirmation: &quot;bar&quot; } }
+    end
+    assert_template 'users/new'
+    assert_select 'div#error_explanation'
+    assert_select 'div.alert.alert-danger'       
+  end
+</code></pre>
+
+<ul>
+<li>test should be green, because we wrote the code before</li>
+<li>update routes</li>
+</ul>
+
+<pre><code>  get  '/signup',  to: 'users#new'
+  post '/signup',  to: 'users#create'
+</code></pre>
+
+<ul>
+<li>update the new form with url on the form for</li>
+</ul>
+
+<pre><code>&lt;%= form_for(@user, url: signup_path) do |f| %&gt;
+</code></pre>
+
+<ul>
+<li>update the user signup test with the sign up path</li>
+</ul>
+
+<pre><code>    assert_no_difference 'User.count' do
+      post signup_path, params: { user: { name:  &quot;&quot;,
+                                         email: &quot;user@invalid&quot;,
+                                         password:              &quot;foo&quot;,
+                                         password_confirmation: &quot;bar&quot; } }
+    end
+</code></pre>
+
+<ul>
+<li>update user signup test with presence of [form]</li>
+</ul>
+
+<pre><code>assert_select 'form[action=&quot;/signup&quot;]'   
+</code></pre>
+
+<ul>
+<li>that is looking for form in signup, so new form should have</li>
+</ul>
+
+<pre><code>&lt;%= form_for(@user, url: signup_path) do |f| %&gt;
+</code></pre>
+
+<ul>
+<li>tests should be green</li>
+<li>** successful signups **</li>
+<li>add the redirect to users create action</li>
+</ul>
+
+<pre><code>  def create
+    @user = User.new(user_params)
+    if @user.save
+      flash[:success] = &quot;Welcome to the Sample App!&quot;    
+      redirect_to @user
+    else
+      render 'new'
+    end
+  end
+</code></pre>
+
+<ul>
+<li>add the flash output to the layout/app above yield</li>
+</ul>
+
+<pre><code>      &lt;% flash.each do |message_type, message| %&gt;
+        &lt;%= content_tag(:div, message, class: &quot;alert alert-#{message_type}&quot;) %&gt;
+      &lt;% end %&gt;
+</code></pre>
+
+<ul>
+<li>clear out the database</li>
+</ul>
+
+<pre><code>rails db:migrate:reset
+</code></pre>
+
+<ul>
+<li>refresh and create a new user at localhost/signup</li>
+<li>** valid test for submission **</li>
+<li>add the signup info test to integration/users_signup</li>
+</ul>
+
+<pre><code>  test &quot;valid signup information&quot; do
+    get signup_path
+    assert_difference 'User.count', 1 do
+      post users_path, params: { user: { name:  &quot;Example User&quot;,
+                                         email: &quot;user@example.com&quot;,
+                                         password:              &quot;password&quot;,
+                                         password_confirmation: &quot;password&quot; } }
+    end
+    follow_redirect!
+    assert_template 'users/show'
+    assert_select 'div.alert.alert-success'  
+    assert_not flash.empty?
+  end
+</code></pre>
+
+<h1 id="7.5professionalgradedeployment">7.5 professional grade deployment</h1>
+
+<h2 id="-mergeanylastchangesandpush">- merge any last changes and push</h2>
+
+<pre><code>$ git add -A
+$ git commit -m &quot;Finish user signup&quot;
+$ git checkout master
+$ git merge sign-up
+</code></pre>
+
+<ul>
+<li>in config/env/production.rb uncomment</li>
+</ul>
+
+<pre><code>config.force_ssl = true
+</code></pre>
+
+<ul>
+<li><strong>At this stage, we need to set up SSL on the remote server. Setting up a production site to use SSL involves purchasing and configuring an SSL certificate for your domain. That’s a lot of work, though, and luckily we won’t need it here: for an application running on a Heroku domain (such as the sample application), we can piggyback on Heroku’s SSL certificate. As a result, when we deploy the application in Section 7.5.2, SSL will automatically be enabled. (If you want to run SSL on a custom domain, such as www.example.com, refer to Heroku’s documentation on SSL.)</strong></li>
+<li><a href="http://devcenter.heroku.com/articles/ssl">heres the documentation</a></li>
+<li>**Having added SSL, we now need to configure our application to use a webserver suitable for production applications. By default, Heroku uses a pure-Ruby webserver called WEBrick, which is easy to set up and run but isn’t good at handling significant traffic. As a result, WEBrick isn’t suitable for production use, so we’ll replace WEBrick with Puma, an HTTP server that is capable of handling a large number of incoming requests.</li>
+</ul>
+
+<p>To add the new webserver, we simply follow the Heroku Puma documentation. The first step is to include the puma gem in our Gemfile, but as of Rails 5 Puma is included by default (Listing 3.2). This means we can skip right to the second step, which is to replace the default contents of the file config/puma.rb with the configuration shown in Listing 7.37. The code in Listing 7.37 comes straight from the Heroku documentation,13 and there is no need to understand it (Box 1.1).**</p>
+
+<ul>
+<li>replace the content in config/puma with</li>
+</ul>
+
+<pre><code>workers Integer(ENV['WEB_CONCURRENCY'] || 2)
+threads_count = Integer(ENV['RAILS_MAX_THREADS'] || 5)
+threads threads_count, threads_count
+
+preload_app!
+
+rackup      DefaultRackup
+port        ENV['PORT']     || 3000
+environment ENV['RACK_ENV'] || 'development'
+
+on_worker_boot do
+  # Worker specific setup for Rails 4.1+
+  # See: https://devcenter.heroku.com/articles/
+  # deploying-rails-applications-with-the-puma-web-server#on-worker-boot
+  ActiveRecord::Base.establish_connection
+end
+</code></pre>
+
+<ul>
+<li>at the root of the app create the file Procfile (./Procfile)</li>
+</ul>
+
+<pre><code>web: bundle exec puma -C config/puma.rb
+</code></pre>
+
+<ul>
+<li>save and commit changes</li>
+</ul>
+
+<pre><code>$ rails test
+$ git add -A
+$ git commit -m &quot;Use SSL and the Puma webserver in production&quot;
+$ git push
+$ git push heroku
+$ heroku run rails db:migrate
+</code></pre>
+
+<ul>
+<li><p>** RUBY VERSION NUMBER IN PRODUCTION **</p></li>
+<li><p>When deploying to Heroku, you may get a warning message like this one:</p></li>
+</ul>
+
+<pre><code>###### WARNING:
+       You have not declared a Ruby version in your Gemfile.
+       To set your Ruby version add this line to your Gemfile:
+       ruby '2.1.5'
+</code></pre>
+
+<pre><code>Experience shows that, at the level of this tutorial, the costs associated with including such an explicit Ruby version number outweigh the (negligible) benefits, so you should ignore this warning for now. The main issue is that keeping your sample app and system in sync with the latest Ruby version can be a huge inconvenience,15 and yet it almost never makes a difference which exact Ruby version number you use. Nevertheless, you should bear in mind that, should you ever end up running a mission-critical app on Heroku, specifying an exact Ruby version in the Gemfile is recommended to ensure maximum compatibility between development and production environments.
+</code></pre>
+
+<h2 id="chapter8-basiclogin">Chapter 8 - Basic login</h2>
+
+<ul>
+<li>rails generate controller Sessions new</li>
+<li>add in the routes</li>
+</ul>
+
+<pre><code>  get    '/login',   to: 'sessions#new'
+  post   '/login',   to: 'sessions#create'
+  delete '/logout',  to: 'sessions#destroy'
+</code></pre>
+
+<ul>
+<li>update the code in test/cont/sessions_cont</li>
+</ul>
+
+<pre><code>  test &quot;should get new&quot; do
+    get login_path
+    assert_response :success
+  end
+</code></pre>
+
+<ul>
+<li>tests should be green</li>
+<li>update sessions/new</li>
+</ul>
+
+<pre><code>&lt;% provide(:title, &quot;Log in&quot;) %&gt;
+&lt;h1&gt;Log in&lt;/h1&gt;
+
+&lt;div class=&quot;row&quot;&gt;
+  &lt;div class=&quot;col-md-6 col-md-offset-3&quot;&gt;
+    &lt;%= form_for(:session, url: login_path) do |f| %&gt;
+
+      &lt;%= f.label :email %&gt;
+      &lt;%= f.email_field :email, class: 'form-control' %&gt;
+
+      &lt;%= f.label :password %&gt;
+      &lt;%= f.password_field :password, class: 'form-control' %&gt;
+
+      &lt;%= f.submit &quot;Log in&quot;, class: &quot;btn btn-primary&quot; %&gt;
+    &lt;% end %&gt;
+
+    &lt;p&gt;New user? &lt;%= link_to &quot;Sign up now!&quot;, signup_path %&gt;&lt;/p&gt;
+  &lt;/div&gt;
+&lt;/div&gt;
+</code></pre>
+
+<ul>
+<li>update the sessions controller</li>
+</ul>
+
+<pre><code>  def new
+  end
+
+  def create
+    user = User.find_by(email: params[:session][:email].downcase)
+    if user &amp;&amp; user.authenticate(params[:session][:password])
+      # Log the user in and redirect to the user's show page.
+    else
+      flash[:danger] = 'Invalid email/password combination' # Not quite right!
+      render 'new'
+    end
+  end
+
+  def destroy
+  end
+</code></pre>
+
+<ul>
+<li>**a flash test - testing for login submission **</li>
+<li>add the code to test/inte/users login test</li>
+</ul>
+
+<pre><code>  test &quot;login with invalid information&quot; do
+    get login_path
+    assert_template 'sessions/new'
+    post login_path, params: { session: { email: &quot;&quot;, password: &quot;&quot; } }
+    assert_template 'sessions/new'
+    assert_not flash.empty?
+    get root_path
+    assert flash.empty?
+  end
+</code></pre>
+
+<ul>
+<li>** to run only 1 test, not all of them, nor the ones in a folder **</li>
+</ul>
+
+<pre><code>rails test test/integration/users_login_test.rb
+</code></pre>
+
+<ul>
+<li>in sessions controller, replace flash with flash.now</li>
+</ul>
+
+<pre><code>      flash.now[:danger] = 'Invalid email/password combination'
+</code></pre>
+
+<ul>
+<li>** logging in **</li>
+<li>in app controller add</li>
+</ul>
+
+<pre><code>include SessionsHelper
+</code></pre>
+
+<ul>
+<li>in helpers/sessions helper</li>
+</ul>
+
+<pre><code>  # Logs in the given user.
+  def log_in(user)
+    session[:user_id] = user.id
+  end
+</code></pre>
+
+<ul>
+<li>Because temporary cookies created using the session method are automatically encrypted, the code in Listing 8.14 is secure, and there is no way for an attacker to use the session information to log in as the user. This applies only to temporary sessions initiated with the session method, though, and is not the case for persistent sessions created using the cookies method. Permanent cookies are vulnerable to a session hijacking attack, so in Chapter 9 we’ll have to be much more careful about the information we place on the user’s browser.</li>
+<li>in sessions controller, update the create action</li>
+</ul>
+
+<pre><code>  def create
+    user = User.find_by(email: params[:session][:email].downcase)
+    if user &amp;&amp; user.authenticate(params[:session][:password])
+      log_in user
+      redirect_to user
+    else
+      flash.now[:danger] = 'Invalid email/password combination'
+      render 'new'
+    end
+  end
+</code></pre>
+
+<ul>
+<li>add to the helpers/session helper</li>
+</ul>
+
+<pre><code>  # Returns the current logged-in user (if any).
+  def current_user
+    if session[:user_id]
+      @current_user ||= User.find_by(id: session[:user_id])
+    end
+  end
+</code></pre>
+
+<ul>
+<li>** heres an example of this in the console **</li>
+</ul>
+
+<pre><code>&gt;&gt; session = {}
+&gt;&gt; session[:user_id] = nil
+&gt;&gt; @current_user ||= User.find_by(id: session[:user_id])
+&lt;What happens here?&gt;
+&gt;&gt; session[:user_id]= User.first.id
+&gt;&gt; @current_user ||= User.find_by(id: session[:user_id])
+&lt;What happens here?&gt;
+&gt;&gt; @current_user ||= User.find_by(id: session[:user_id])
+&lt;What happens here?&gt;
+</code></pre>
+
+<ul>
+<li>** layout links changed **</li>
+<li>add to the helpers/sessions helper</li>
+</ul>
+
+<pre><code>  # Returns true if the user is logged in, false otherwise.
+  def logged_in?
+    !current_user.nil?
+  end
+</code></pre>
+
+<ul>
+<li>update the header partial with all the user links</li>
+</ul>
+
+<pre><code>&lt;header class=&quot;navbar navbar-fixed-top navbar-inverse&quot;&gt;
+  &lt;div class=&quot;container&quot;&gt;
+    &lt;%= link_to &quot;sample app&quot;, root_path, id: &quot;logo&quot; %&gt;
+    &lt;nav&gt;
+      &lt;ul class=&quot;nav navbar-nav navbar-right&quot;&gt;
+        &lt;li&gt;&lt;%= link_to &quot;Home&quot;, root_path %&gt;&lt;/li&gt;
+        &lt;li&gt;&lt;%= link_to &quot;Help&quot;, help_path %&gt;&lt;/li&gt;
+        &lt;% if logged_in? %&gt;
+          &lt;li&gt;&lt;%= link_to &quot;Users&quot;, '#' %&gt;&lt;/li&gt;
+          &lt;li class=&quot;dropdown&quot;&gt;
+            &lt;a href=&quot;#&quot; class=&quot;dropdown-toggle&quot; data-toggle=&quot;dropdown&quot;&gt;
+              Account &lt;b class=&quot;caret&quot;&gt;&lt;/b&gt;
+            &lt;/a&gt;
+            &lt;ul class=&quot;dropdown-menu&quot;&gt;
+              &lt;li&gt;&lt;%= link_to &quot;Profile&quot;, current_user %&gt;&lt;/li&gt;
+              &lt;li&gt;&lt;%= link_to &quot;Settings&quot;, '#' %&gt;&lt;/li&gt;
+              &lt;li class=&quot;divider&quot;&gt;&lt;/li&gt;
+              &lt;li&gt;
+                &lt;%= link_to &quot;Log out&quot;, logout_path, method: :delete %&gt;
+              &lt;/li&gt;
+            &lt;/ul&gt;
+          &lt;/li&gt;
+        &lt;% else %&gt;
+          &lt;li&gt;&lt;%= link_to &quot;Log in&quot;, login_path %&gt;&lt;/li&gt;
+        &lt;% end %&gt;
+      &lt;/ul&gt;
+    &lt;/nav&gt;
+  &lt;/div&gt;
+&lt;/header&gt;
+</code></pre>
+
+<ul>
+<li>dropdown doesnt work cuz we havent add the js</li>
+<li>in app.js</li>
+</ul>
+
+<pre><code>//= require jquery
+//= require bootstrap
+</code></pre>
+
+<ul>
+<li>add the jquery-rails gem</li>
+<li>refresh and test out the dropdown and login</li>
+<li>** testing layout changes using fixtures **</li>
+<li>In order to see these changes, our test needs to log in as a previously registered user, which means that such a user must already exist in the database. The default Rails way to do this is to use fixtures, which are a way of organizing data to be loaded into the test database. We discovered in Section 6.2.5 that we needed to delete the default fixtures so that our email uniqueness tests would pass (Listing 6.31). Now we’re ready to start filling in that empty file with custom fixtures of our own.</li>
+<li>add the code to user.rb</li>
+</ul>
+
+<pre><code>  # Returns the hash digest of the given string.
+  def User.digest(string)
+    cost = ActiveModel::SecurePassword.min_cost ? BCrypt::Engine::MIN_COST :
+                                                  BCrypt::Engine.cost
+    BCrypt::Password.create(string, cost: cost)
+  end
+</code></pre>
+
+<ul>
+<li>in test/fixtures/users.yml</li>
+</ul>
+
+<pre><code>michael:
+  name: Michael Example
+  email: michael@example.com
+  password_digest: &lt;%= User.digest('password') %&gt;
+</code></pre>
+
+<ul>
+<li>update the users login test with</li>
+</ul>
+
+<pre><code>require 'test_helper'
+
+class UsersLoginTest &lt; ActionDispatch::IntegrationTest
+  def setup
+    @user = users(:michael)
+  end
+
+  test &quot;login with invalid information&quot; do
+    get login_path
+    assert_template 'sessions/new'
+    post login_path, params: { session: { email: &quot;&quot;, password: &quot;&quot; } }
+    assert_template 'sessions/new'
+    assert_not flash.empty?
+    get root_path
+    assert flash.empty?
+  end
+
+  test &quot;login with valid information&quot; do
+    get login_path
+    post login_path, params: { session: { email:    @user.email,
+                                          password: 'password' } }
+    assert_redirected_to @user
+    follow_redirect!
+    assert_template 'users/show'
+    assert_select &quot;a[href=?]&quot;, login_path, count: 0
+    assert_select &quot;a[href=?]&quot;, logout_path
+    assert_select &quot;a[href=?]&quot;, user_path(@user)
+  end  
+end
+</code></pre>
+
+<ul>
+<li>rails test test/integration/users_login_test.rb</li>
+<li>should be green</li>
+<li>** login upon signup **</li>
+<li>update users controller, add a log in user</li>
+</ul>
+
+<pre><code>  def create
+    @user = User.new(user_params)
+    if @user.save
+      log_in @user
+      flash[:success] = &quot;Welcome to the Sample App!&quot;
+      redirect_to @user
+    else
+      render 'new'
+    end
+  end
+</code></pre>
+
+<ul>
+<li>add to test/test helper</li>
+</ul>
+
+<pre><code>  def is_logged_in?
+    !session[:user_id].nil?
+  end
+</code></pre>
+
+<ul>
+<li>add to inte/users signup test</li>
+</ul>
+
+<pre><code>    follow_redirect!
+    assert_template 'users/show'
+    assert_not flash.empty?
+    assert is_logged_in?
+</code></pre>
+
+<ul>
+<li>test should be green</li>
+<li>** logging out **</li>
+<li>add to helpers/sessions helper</li>
+</ul>
+
+<pre><code>  # Logs out the current user.
+  def log_out
+    session.delete(:user_id)
+    @current_user = nil
+  end
+</code></pre>
+
+<ul>
+<li>update destroy action in cont/sess controller</li>
+</ul>
+
+<pre><code>  def destroy
+    log_out
+    redirect_to root_url
+  end
+</code></pre>
+
+<ul>
+<li>update inte/users login test, so it logs in and logs out</li>
+</ul>
+
+<pre><code>  test &quot;login with valid information followed by logout&quot; do
+    get login_path
+    post login_path, params: { session: { email:    @user.email,
+                                          password: 'password' } }
+    assert is_logged_in?
+    assert_redirected_to @user
+    follow_redirect!
+    assert_template 'users/show'
+    assert_select &quot;a[href=?]&quot;, login_path, count: 0
+    assert_select &quot;a[href=?]&quot;, logout_path
+    assert_select &quot;a[href=?]&quot;, user_path(@user)
+    delete logout_path
+    assert_not is_logged_in?
+    assert_redirected_to root_url
+    follow_redirect!
+    assert_select &quot;a[href=?]&quot;, login_path
+    assert_select &quot;a[href=?]&quot;, logout_path,      count: 0
+    assert_select &quot;a[href=?]&quot;, user_path(@user), count: 0
+  end
+</code></pre>
+
+<ul>
+<li>rails test should be green</li>
+<li>refresh page and test login and logout</li>
+</ul>
+
+<h2 id="chapter9-advancedlogin">Chapter 9 - advanced login</h2>
+
+<h2 id="-rememberme">- ** remember me**</h2>
 
 </body>
 </html>
