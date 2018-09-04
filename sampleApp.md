@@ -3302,4 +3302,686 @@ end
 ```
 
 - all tests should be green
+- ** to update on heroku with seeds **
+
+```
+$ rails test
+$ git push heroku
+$ heroku pg:reset DATABASE
+$ heroku run rails db:migrate
+$ heroku run rails db:seed
+$ heroku restart
+```
+
+## Chapter 11 - account activation
+
+- here is the plan
+
+```
+Our strategy for handling account activation parallels user login (Section 8.2) and especially remembering users (Section 9.1). The basic sequence appears as follows:2
+
+Start users in an “unactivated” state.
+When a user signs up, generate an activation token and corresponding activation digest.
+Save the activation digest to the database, and then send an email to the user with a link containing the activation token and user’s email address.3
+When the user clicks the link, find the user by email address, and then authenticate the token by comparing with the activation digest.
+If the user is authenticated, change the status from “unactivated” to “activated”.
+```
+
+- rails generate controller AccountActivations
+- in routes
+
+```
+resources :account_activations, only: [:edit]
+```
+
+- in terminal
+
+```
+$ rails generate migration add_activation_to_users \
+> activation_digest:string activated:boolean activated_at:datetime
+```
+
+- update the migrated file
+
+```
+class AddActivationToUsers < ActiveRecord::Migration[5.2]
+  def change
+    add_column :users, :activation_digest, :string
+    add_column :users, :activated, :boolean, default: false
+    add_column :users, :activated_at, :datetime
+  end
+end
+```
+
+- rails db:migrate
+- add to the user.rb
+
+```
+class User < ApplicationRecord
+  attr_accessor :remember_token, :activation_token
+  before_save   :downcase_email
+  before_create :create_activation_digest
+  validates :name,  presence: true, length: { maximum: 50 }
+  VALID_EMAIL_REGEX = /\A[\w+\-.]+@[a-z\d\-.]+\.[a-z]+\z/i
+  validates :email, presence: true, length: { maximum: 255 },
+                    format: { with: VALID_EMAIL_REGEX },
+                    uniqueness: { case_sensitive: false }
+  has_secure_password
+  validates :password, presence: true, length: { minimum: 6 }, allow_nil: true
+
+  class << self
+    # Returns the hash digest of the given string.
+    def digest(string)
+      cost = ActiveModel::SecurePassword.min_cost ? BCrypt::Engine::MIN_COST :
+                                                    BCrypt::Engine.cost
+      BCrypt::Password.create(string, cost: cost)
+    end
+
+    # Returns a random token.
+    def new_token
+      SecureRandom.urlsafe_base64
+    end
+  end
+
+  # Remembers a user in the database for use in persistent sessions.
+  def remember
+    self.remember_token = User.new_token
+    update_attribute(:remember_digest, User.digest(remember_token))
+  end
+
+  # Returns true if the given token matches the digest.
+  def authenticated?(remember_token)
+    return false if remember_digest.nil?
+    BCrypt::Password.new(remember_digest).is_password?(remember_token)
+  end
+
+  # Forgets a user.
+  def forget
+    update_attribute(:remember_digest, nil)
+  end    
+
+  private
+
+    # Converts email to all lower-case.
+    def downcase_email
+      # self.email = email.downcase
+      email.downcase!
+    end
+
+    # Creates and assigns the activation token and digest.
+    def create_activation_digest
+      self.activation_token  = User.new_token
+      self.activation_digest = User.digest(activation_token)
+    end
+end
+```
+
+- update the seed files as well
+
+```
+User.destroy_all
+
+User.create!(name:  "Pep Merc",
+             email: "buddylee939@hotmail.com",
+             password:              "asdfasdf",
+             password_confirmation: "asdfasdf",
+             admin: true,
+             activated: true,
+             activated_at: Time.zone.now)
+
+num = 99
+
+num.times do |n|
+  name  = Faker::Name.name
+  email = Faker::Internet.email
+  password = "asdfasdf"
+  User.create!(name:  name,
+               email: email,
+               password:              password,
+               password_confirmation: password,
+               activated: true,
+               activated_at: Time.zone.now)
+end
+
+num_s = (num+1).to_s
+puts num_s + ' Users created'
+```
+
+- and test/fixtures/user.yml
+
+```
+michael:
+  name: Michael Example
+  email: michael@example.com
+  password_digest: <%= User.digest('password') %>
+  admin: true
+  activated: true
+  activated_at: <%= Time.zone.now %>
+
+archer:
+  name: Sterling Archer
+  email: duchess@example.gov
+  password_digest: <%= User.digest('password') %>
+  activated: true
+  activated_at: <%= Time.zone.now %>
+
+lana:
+  name: Lana Kane
+  email: hands@example.gov
+  password_digest: <%= User.digest('password') %>
+  activated: true
+  activated_at: <%= Time.zone.now %>
+
+malory:
+  name: Malory Archer
+  email: boss@example.gov
+  password_digest: <%= User.digest('password') %>
+  activated: true
+  activated_at: <%= Time.zone.now %>
+
+<% 30.times do |n| %>
+user_<%= n %>:
+  name:  <%= "User #{n}" %>
+  email: <%= "user-#{n}@example.com" %>
+  password_digest: <%= User.digest('password') %>
+  activated: true
+  activated_at: <%= Time.zone.now %>
+<% end %>
+```
+
+- in terminal
+
+```
+$ rails db:migrate:reset
+$ rails db:seed
+```
+
+## ** account activation emails **
+- rails generate mailer UserMailer account_activation password_reset
+- in the file views/user_mailer/account_activation.text.erb
+
+```
+UserMailer#account_activation
+
+<%= @greeting %>, find me in app/views/user_mailer/account_activation.text.erb
+```
+
+- in views/user_mailer/account_activation_html
+
+```
+<h1>UserMailer#account_activation</h1>
+
+<p>
+  <%= @greeting %>, find me in app/views/user_mailer/account_activation.html.erb
+</p>
+```
+
+- in mailers/user_mailer
+
+```
+class ApplicationMailer < ActionMailer::Base
+  default from: 'from@example.com'
+  layout 'mailer'
+end
+```
+
+- in mailers/user_mailer
+
+```
+class UserMailer < ApplicationMailer
+
+  # Subject can be set in your I18n file at config/locales/en.yml
+  # with the following lookup:
+  #
+  #   en.user_mailer.account_activation.subject
+  #
+  def account_activation
+    @greeting = "Hi"
+
+    mail to: "to@example.org"
+  end
+
+  # Subject can be set in your I18n file at config/locales/en.yml
+  # with the following lookup:
+  #
+  #   en.user_mailer.password_reset.subject
+  #
+  def password_reset
+    @greeting = "Hi"
+
+    mail to: "to@example.org"
+  end
+end
+```
+
+- ** now we need to update the code **
+- update mailers/application_mailer
+
+```
+class ApplicationMailer < ActionMailer::Base
+  default from: "noreply@example.com"
+  layout 'mailer'
+end
+```
+
+- mailing account activation link: in mailers/user_mailer
+
+```
+class UserMailer < ApplicationMailer
+
+  def account_activation(user)
+    @user = user
+    mail to: user.email, subject: "Account activation"
+  end
+
+  def password_reset
+    @greeting = "Hi"
+
+    mail to: "to@example.org"
+  end
+end
+```
+
+- update views/user_mailer/account_activation.text
+
+```
+Hi <%= @user.name %>,
+
+Welcome to the Sample App! Click on the link below to activate your account:
+
+<%= edit_account_activation_url(@user.activation_token, email: @user.email) %>
+```
+
+- in views/user_mailer/account_activation.html
+
+```
+<h1>Sample App</h1>
+
+<p>Hi <%= @user.name %>,</p>
+
+<p>
+Welcome to the Sample App! Click on the link below to activate your account:
+</p>
+
+<%= link_to "Activate", edit_account_activation_url(@user.activation_token,
+                                                    email: @user.email) %>
+```
+
+- ** email previews **
+
+```
+11.2.2 Email previews
+To see the results of the templates defined in Listing 11.13 and Listing 11.14, we can use email previews, which are special URLs exposed by Rails to let us see what our email messages look like. First, we need to add some configuration to our application’s development environment, as shown in Listing 11.16.
+```
+
+- in config/env/dev
+
+```
+  config.action_mailer.raise_delivery_errors = true
+  config.action_mailer.delivery_method = :test
+  host = 'localhost:3000'                     # Local server
+  config.action_mailer.default_url_options = { host: host, protocol: 'http' }
+```
+
+- rails server
+- update the file: test/mailers/previews/user_mailer_preview
+
+```
+# Preview all emails at http://localhost:3000/rails/mailers/user_mailer
+class UserMailerPreview < ActionMailer::Preview
+
+  # Preview this email at
+  # http://localhost:3000/rails/mailers/user_mailer/account_activation
+  def account_activation
+    user = User.first
+    user.activation_token = User.new_token
+    UserMailer.account_activation(user)
+  end
+
+  # Preview this email at
+  # http://localhost:3000/rails/mailers/user_mailer/password_reset
+  def password_reset
+    UserMailer.password_reset
+  end
+end
+```
+
+- **email tests**
+- in test/mailers/user_mailer_test
+
+```
+require 'test_helper'
+
+class UserMailerTest < ActionMailer::TestCase
+
+  test "account_activation" do
+    user = users(:michael)
+    user.activation_token = User.new_token
+    mail = UserMailer.account_activation(user)
+    assert_equal "Account activation", mail.subject
+    assert_equal [user.email], mail.to
+    assert_equal ["noreply@example.com"], mail.from
+    assert_match user.name,               mail.body.encoded
+    assert_match user.activation_token,   mail.body.encoded
+    assert_match CGI.escape(user.email),  mail.body.encoded
+  end
+end
+```
+
+- in config/env/test update the host
+
+```
+  config.action_mailer.delivery_method = :test
+  config.action_mailer.default_url_options = { host: 'example.com' }
+```
+
+- tests should be green
+- udating the users create action
+- update the create action in users controller
+
+```
+  def create
+    @user = User.new(user_params)
+    if @user.save
+      UserMailer.account_activation(@user).deliver_now
+      flash[:info] = "Please check your email to activate your account."
+      redirect_to root_url
+    else
+      render 'new'
+    end
+  end
+```
+
+- currently test are red because of redirect to root and not profile, 
+- in test/inte/users signup test, comment out
+
+```
+
+  test "valid signup information" do
+    get signup_path
+    assert_difference 'User.count', 1 do
+      post users_path, params: { user: { name:  "Example User",
+                                         email: "user@example.com",
+                                         password:              "password",
+                                         password_confirmation: "password" } }
+    end
+    follow_redirect!
+    # assert_template 'users/show'
+    # assert_not flash.empty?
+    # assert is_logged_in?
+  end
+```
+
+- refresh and try signing up as a new user. we should get redirected and the email should appear in the rails server logs
+- in rails c, we can see last user is not activated, although currently they can log in
+- ** activating the account **
+
+```
+The solution involves our first example of metaprogramming, which is essentially a program that writes a program. (Metaprogramming is one of Ruby’s strongest suits, and many of the “magic” features of Rails are due to its use of Ruby metaprogramming.) The key in this case is the powerful send method, which lets us call a method with a name of our choice by “sending a message” to a given object. For example, in this console session we use send on a native Ruby object to find the length of an array:
+```
+
+- replace in user.rb
+
+```
+  # Returns true if the given token matches the digest.
+  def authenticated?(attribute, token)
+    digest = send("#{attribute}_digest")
+    return false if digest.nil?
+    BCrypt::Password.new(digest).is_password?(token)
+  end
+```
+
+- in helpers/sessions_helper replace current_user
+
+```
+  # Returns the current logged-in user (if any).
+  def current_user
+    if (user_id = session[:user_id])
+      @current_user ||= User.find_by(id: user_id)
+    elsif (user_id = cookies.signed[:user_id])
+      user = User.find_by(id: user_id)
+      if user && user.authenticated?(:remember, cookies[:remember_token])
+        log_in user
+        @current_user = user
+      end
+    end
+  end
+```
+
+- in test/models/user_test.rb
+
+```
+  test "authenticated? should return false for a user with nil digest" do
+    assert_not @user.authenticated?(:remember, '')
+  end
+```
+
+- tests should be green
+- in contr/account activations controller
+
+```
+class AccountActivationsController < ApplicationController
+
+  def edit
+    user = User.find_by(email: params[:email])
+    if user && !user.activated? && user.authenticated?(:activation, params[:id])
+      user.update_attribute(:activated,    true)
+      user.update_attribute(:activated_at, Time.zone.now)
+      log_in user
+      flash[:success] = "Account activated!"
+      redirect_to user
+    else
+      flash[:danger] = "Invalid activation link"
+      redirect_to root_url
+    end
+  end
+end
+```
+
+- go to the link from the rails server log to activate
+- at the moment, once user signs up, they can log in because the activation doesn't deterr it
+- to fix that
+- up date the create action in sessions controller
+
+```
+  def create
+    @user = User.find_by(email: params[:session][:email].downcase)
+    if @user && @user.authenticate(params[:session][:password])
+      if @user.activated?
+        log_in @user
+        params[:session][:remember_me] == '1' ? remember(@user) : forget(@user)
+        redirect_back_or @user
+      else
+        message  = "Account not activated. "
+        message += "Check your email for the activation link."
+        flash[:warning] = message
+        redirect_to root_url
+      end
+    else
+      flash.now[:danger] = 'Invalid email/password combination'
+      render 'new'
+    end
+  end
+```
+
+- update test/inte/users_signup_test
+
+```
+require 'test_helper'
+
+class UsersSignupTest < ActionDispatch::IntegrationTest
+
+  def setup
+    ActionMailer::Base.deliveries.clear
+  end
+  
+  test "invalid signup information" do
+    get signup_path
+    assert_no_difference 'User.count' do
+      post users_path, params: { user: { name:  "",
+                                         email: "user@invalid",
+                                         password:              "foo",
+                                         password_confirmation: "bar" } }
+    end
+    assert_template 'users/new'
+    assert_select 'div#error_explanation'
+    assert_select 'div.field_with_errors'
+  end
+
+  test "valid signup information with account activation" do
+    get signup_path
+    assert_difference 'User.count', 1 do
+      post users_path, params: { user: { name:  "Example User",
+                                         email: "user@example.com",
+                                         password:              "password",
+                                         password_confirmation: "password" } }
+    end
+    assert_equal 1, ActionMailer::Base.deliveries.size
+    user = assigns(:user)
+    assert_not user.activated?
+    # Try to log in before activation.
+    log_in_as(user)
+    assert_not is_logged_in?
+    # Invalid activation token
+    get edit_account_activation_path("invalid token", email: user.email)
+    assert_not is_logged_in?
+    # Valid token, wrong email
+    get edit_account_activation_path(user.activation_token, email: 'wrong')
+    assert_not is_logged_in?
+    # Valid activation token
+    get edit_account_activation_path(user.activation_token, email: user.email)
+    assert user.reload.activated?
+    follow_redirect!
+    assert_template 'users/show'
+    assert is_logged_in?
+  end
+
+end
+
+```
+
+- all tests should be green (im having probelems with one)
+- add to the user.rb
+
+```
+  # Activates an account.
+  def activate
+    update_columns(activated: true, activated_at: Time.zone.now)
+  end
+
+  # Sends activation email.
+  def send_activation_email
+    UserMailer.account_activation(self).deliver_now
+  end
+```
+
+- update create action in users controller
+
+```
+  def create
+    @user = User.new(user_params)
+    if @user.save
+      @user.send_activation_email
+      flash[:info] = "Please check your email to activate your account."
+      redirect_to root_url
+    else
+      render 'new'
+    end
+  end
+```
+
+- update contr/acount activations controller
+
+```
+class AccountActivationsController < ApplicationController
+
+  def edit
+    user = User.find_by(email: params[:email])
+    if user && !user.activated? && user.authenticated?(:activation, params[:id])
+      user.activate
+      log_in user
+      flash[:success] = "Account activated!"
+      redirect_to user
+    else
+      flash[:danger] = "Invalid activation link"
+      redirect_to root_url
+    end
+  end
+end
+```
+
+- all tests should be green
+- in users controller, update the index action and show
+
+```
+  def index
+    # @users = User.paginate(page: params[:page])
+    @users = User.where(activated: true)
+                  .paginate(page: params[:page])
+                  .order('created_at DESC')
+  end
+
+  def show
+    @user = User.find(params[:id])
+    redirect_to root_url and return unless @user.activated?
+    # debugger
+  end
+```
+
+- the index shows only activated users in the index and the show, if you type localhost/users/(non-activated user id) it should redirect to root path
+
+### email in production - using sendgrid
+
+```
+To send email in production, we’ll use SendGrid, which is available as an add-on at Heroku for verified accounts. (This requires adding credit card information to your Heroku account, but there is no charge when verifying an account.) For our purposes, the “starter” tier (which as of this writing is limited to 400 emails a day but costs nothing) is the best fit. We can add it to our app as follows:
+```
+
+- in terminal
+- heroku addons:create sendgrid:starter
+
+```
+(This might fail on systems with an older version of Heroku’s command-line interface. In this case, either upgrade to the latest Heroku toolbelt or try the older syntax heroku addons:add sendgrid:starter.)
+
+To configure our application to use SendGrid, we need to fill out the SMTP settings for our production environment. As shown in Listing 11.41, you will also have to define a host variable with the address of your production website.
+```
+
+- in config/env/prod
+
+```
+  config.action_mailer.raise_delivery_errors = true
+  config.action_mailer.delivery_method = :smtp
+  host = '<your heroku app>.herokuapp.com'
+  config.action_mailer.default_url_options = { host: host }
+  ActionMailer::Base.smtp_settings = {
+    :address        => 'smtp.sendgrid.net',
+    :port           => '587',
+    :authentication => :plain,
+    :user_name      => ENV['SENDGRID_USERNAME'],
+    :password       => ENV['SENDGRID_PASSWORD'],
+    :domain         => 'heroku.com',
+    :enable_starttls_auto => true
+  }
+```
+
+```
+The email configuration in Listing 11.41 includes the user_name and password of the SendGrid account, but note that they are accessed via the ENV environment variable instead of being hard-coded. This is a best practice for production applications, which for security reasons should never expose sensitive information such as raw passwords in source code. In the present case, these variables are configured automatically via the SendGrid add-on, but we’ll see an example in Section 13.4.4 where we’ll have to define them ourselves. In case you’re curious, you can view the environment variables used in Listing 11.41 as follows:
+```
+
+- in terminal
+
+```
+$ heroku config:get SENDGRID_USERNAME
+$ heroku config:get SENDGRID_PASSWORD
+```
+
+- then git commit and push
+
+```
+$ rails test
+$ git push
+$ git push heroku
+$ heroku run rails db:migrate
+```
+
+- go to heroku site and try signing up with address you own and we should get an email activation
 - 

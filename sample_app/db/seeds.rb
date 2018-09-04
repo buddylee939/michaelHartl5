@@ -4,7 +4,9 @@ User.create!(name:  "Pep Merc",
              email: "buddylee939@hotmail.com",
              password:              "asdfasdf",
              password_confirmation: "asdfasdf",
-             admin: true)
+             admin: true,
+             activated: true,
+             activated_at: Time.zone.now)
 
 num = 99
 
@@ -15,7 +17,9 @@ num.times do |n|
   User.create!(name:  name,
                email: email,
                password:              password,
-               password_confirmation: password)
+               password_confirmation: password,
+               activated: true,
+               activated_at: Time.zone.now)
 end
 
 num_s = (num+1).to_s
