@@ -4461,4 +4461,1444 @@ $ heroku run rails db:migrate
 
 ## Chapter 13 - user microposts
 
-- 
+- rails generate model Micropost content:text user:references
+- update the migration file
+
+```
+class CreateMicroposts < ActiveRecord::Migration[5.2]
+  def change
+    create_table :microposts do |t|
+      t.text :content
+      t.references :user, foreign_key: true
+
+      t.timestamps
+    end
+    add_index :microposts, [:user_id, :created_at]
+  end
+end
+```
+
+-  rails db:migrate
+-  has_many and belongs_to to user and microposts respectively
+-  ** micropost validations **
+- update micropost.rb
+
+```
+class Micropost < ActiveRecord::Base
+  belongs_to :user
+  validates :user_id, presence: true
+end
+```
+
+- add to the test/models/micro test
+
+```
+  test "content should be present" do
+    @micropost.content = "   "
+    assert_not @micropost.valid?
+  end
+
+  test "content should be at most 140 characters" do
+    @micropost.content = "a" * 141
+    assert_not @micropost.valid?
+  end
+```
+
+- update micropost.rb
+
+```
+validates :content, presence: true, length: { maximum: 140 }
+```
+
+- with the 1 to many we have
+
+```
+Micropost.create
+Micropost.create!
+Micropost.new
+we have
+
+user.microposts.create
+user.microposts.create!
+user.microposts.build
+```
+
+- update test/models/micropost_test
+
+```
+  def setup
+    @user = users(:michael)
+    # This code is not idiomatically correct.
+    @micropost = @user.microposts.build(content: "Lorem ipsum")
+  end
+```
+
+### micropost refinements
+
+- add to test/models/micropost_test
+
+```
+  test "order should be most recent first" do
+    assert_equal microposts(:most_recent), Micropost.first
+  end
+```
+
+- update test/fixtures/microposts with
+
+```
+orange:
+  content: "I just ate an orange!"
+  created_at: <%= 10.minutes.ago %>
+
+tau_manifesto:
+  content: "Check out the @tauday site by @mhartl: http://tauday.com"
+  created_at: <%= 3.years.ago %>
+
+cat_video:
+  content: "Sad cats are sad: http://youtu.be/PKffm2uI4dk"
+  created_at: <%= 2.hours.ago %>
+
+most_recent:
+  content: "Writing a short test"
+  created_at: <%= Time.zone.now %>
+```
+
+- add to models/micropost
+
+```
+default_scope -> { order(created_at: :desc) }
+```
+
+- tests should be green
+- in models/user update the has many
+
+```
+has_many :microposts, dependent: :destroy
+```
+
+- add to the test/models/user test
+
+```
+  test "associated microposts should be destroyed" do
+    @user.save
+    @user.microposts.create!(content: "Lorem ipsum")
+    assert_difference 'Micropost.count', -1 do
+      @user.destroy
+    end
+  end
+```
+
+### Showing microposts
+
+- rails db:migrate:reset
+- rails db:seed
+- rails generate controller Microposts
+- create the file views/microposts/microposts.html.erb partial
+
+```
+<li id="micropost-<%= micropost.id %>">
+  <%= link_to gravatar_for(micropost.user, size: 50), micropost.user %>
+  <span class="user"><%= link_to micropost.user.name, micropost.user %></span>
+  <span class="content"><%= micropost.content %></span>
+  <span class="timestamp">
+    Posted <%= time_ago_in_words(micropost.created_at) %> ago.
+  </span>
+</li>
+```
+
+- update the show action in controllers/users controller
+
+```
+  def show
+    @user = User.find(params[:id])
+    redirect_to root_url and return unless @user.activated?
+    @microposts = @user.microposts.paginate(page: params[:page])
+    # debugger
+  end
+```
+
+- add to views/users/show
+
+```
+<% provide(:title, @user.name) %>
+<div class="row">
+  <aside class="col-md-4">
+    <section class="user_info">
+      <h1>
+        <%= gravatar_for @user %>
+        <%= @user.name %>
+      </h1>
+    </section>
+  </aside>
+  <div class="col-md-8">
+    <% if @user.microposts.any? %>
+      <h3>Microposts (<%= @user.microposts.count %>)</h3>
+      <ol class="microposts">
+        <%= render @microposts %>
+      </ol>
+      <%= will_paginate @microposts %>
+    <% end %>
+  </div>  
+</div>
+```
+
+### sample microposts
+
+- update the seed file
+
+```
+users = User.order(:created_at).take(6)
+50.times do
+  content = Faker::Lorem.sentence(5)
+  users.each { |user| user.microposts.create!(content: content) }
+end
+
+puts '50 posts created'
+```
+
+- restart the server
+- add css to custom.scss
+
+```
+/* microposts */
+
+.microposts {
+  list-style: none;
+  padding: 0;
+  li {
+    padding: 10px 0;
+    border-top: 1px solid #e8e8e8;
+  }
+  .user {
+    margin-top: 5em;
+    padding-top: 0;
+  }
+  .content {
+    display: block;
+    margin-left: 60px;
+    img {
+      display: block;
+      padding: 5px 0;
+    }
+  }
+  .timestamp {
+    color: $gray-light;
+    display: block;
+    margin-left: 60px;
+  }
+  .gravatar {
+    float: left;
+    margin-right: 10px;
+    margin-top: 5px;
+  }
+}
+
+aside {
+  textarea {
+    height: 100px;
+    margin-bottom: 5px;
+  }
+}
+
+span.picture {
+  margin-top: 10px;
+  input {
+    border: 0;
+  }
+}
+```
+
+### profile micropost tests
+
+- rails generate integration_test users_profile
+- update the code in test/fixtures/microposts
+
+```
+orange:
+  content: "I just ate an orange!"
+  created_at: <%= 10.minutes.ago %>
+  user: michael
+
+tau_manifesto:
+  content: "Check out the @tauday site by @mhartl: http://tauday.com"
+  created_at: <%= 3.years.ago %>
+  user: michael
+
+cat_video:
+  content: "Sad cats are sad: http://youtu.be/PKffm2uI4dk"
+  created_at: <%= 2.hours.ago %>
+  user: michael
+
+most_recent:
+  content: "Writing a short test"
+  created_at: <%= Time.zone.now %>
+  user: michael
+
+<% 30.times do |n| %>
+micropost_<%= n %>:
+  content: <%= Faker::Lorem.sentence(5) %>
+  created_at: <%= 42.days.ago %>
+  user: michael
+<% end %>
+```
+
+- add the code to test/inte/users profile test
+
+```
+require 'test_helper'
+
+class UsersProfileTest < ActionDispatch::IntegrationTest
+  include ApplicationHelper
+
+  def setup
+    @user = users(:michael)
+  end
+
+  test "profile display" do
+    get user_path(@user)
+    assert_template 'users/show'
+    assert_select 'title', full_title(@user.name)
+    assert_select 'h1', text: @user.name
+    assert_select 'h1>img.gravatar'
+    assert_match @user.microposts.count.to_s, response.body
+    assert_select 'div.pagination'
+    @user.microposts.paginate(page: 1).each do |micropost|
+      assert_match micropost.content, response.body
+    end
+  end
+end
+```
+
+### manipulating microposts
+
+- add to the routes file
+
+```
+resources :microposts,          only: [:create, :destroy]
+```
+
+- add the code to test/controllers/microposts controller test
+
+```
+  def setup
+    @micropost = microposts(:orange)
+  end
+
+  test "should redirect create when not logged in" do
+    assert_no_difference 'Micropost.count' do
+      post microposts_path, params: { micropost: { content: "Lorem ipsum" } }
+    end
+    assert_redirected_to login_url
+  end
+
+  test "should redirect destroy when not logged in" do
+    assert_no_difference 'Micropost.count' do
+      delete micropost_path(@micropost)
+    end
+    assert_redirected_to login_url
+  end
+```
+
+- add the code to controllers/app controller
+
+```
+  private
+
+    # Confirms a logged-in user.
+    def logged_in_user
+      unless logged_in?
+        store_location
+        flash[:danger] = "Please log in."
+        redirect_to login_url
+      end
+    end
+```
+
+- from users controller, remove 'logged_in_user' from private, not the before action
+
+### creating microposts
+
+- HOW TO SERVE DIFFERENT HOME PAGES DEPENDING ON A VISITOR'S LOGIN STATUS
+- update the code in controllers/microposts controller
+
+```
+  def create
+    @micropost = current_user.microposts.build(micropost_params)
+    if @micropost.save
+      flash[:success] = "Micropost created!"
+      redirect_to root_url
+    else
+      render 'static_pages/home'
+    end
+  end
+
+  def destroy
+  end
+
+  private
+
+    def micropost_params
+      params.require(:micropost).permit(:content)
+    end
+```
+
+- update static pages/home
+
+```
+<% if logged_in? %>
+  <div class="row">
+    <aside class="col-md-4">
+      <section class="user_info">
+        <%= render 'shared/user_info' %>
+      </section>
+      <section class="micropost_form">
+        <%= render 'shared/micropost_form' %>
+      </section>
+    </aside>
+  </div>
+<% else %>
+  <div class="center jumbotron">
+    <h1>Welcome to the Sample App</h1>
+
+    <h2>
+      This is the home page for the
+      <a href="http://www.railstutorial.org/">Ruby on Rails Tutorial</a>
+      sample application.
+    </h2>
+
+    <%= link_to "Sign up now!", signup_path, class: "btn btn-lg btn-primary" %>
+  </div>
+
+  <%= link_to image_tag("rails.png", alt: "Rails logo"),
+              'http://rubyonrails.org/' %>
+<% end %>
+```
+
+- create the partial shared/user_info
+
+```
+<%= link_to gravatar_for(current_user, size: 50), current_user %>
+<h1><%= current_user.name %></h1>
+<span><%= link_to "view my profile", current_user %></span>
+<span><%= pluralize(current_user.microposts.count, "micropost") %></span>
+```
+
+- create the partial shared/micropost_form
+
+```
+<%= form_for(@micropost) do |f| %>
+  <%= render 'shared/error_messages', object: f.object %>
+  <div class="field">
+    <%= f.text_area :content, placeholder: "Compose new micropost..." %>
+  </div>
+  <%= f.submit "Post", class: "btn btn-primary" %>
+<% end %>
+```
+
+- update the home action in contr/static pages cont
+
+```
+  def home
+    @micropost = current_user.microposts.build if logged_in?
+  end
+```
+
+- update the code in shared/error messages
+
+```
+<% if object.errors.any? %>
+  <div id="error_explanation">
+    <div class="alert alert-danger">
+      The form contains <%= pluralize(object.errors.count, "error") %>.
+    </div>
+    <ul>
+    <% object.errors.full_messages.each do |msg| %>
+      <li><%= msg %></li>
+    <% end %>
+    </ul>
+  </div>
+<% end %>
+```
+
+- in users/form partial update the code with object instead
+
+```
+<%= render 'shared/error_messages', object: f.object %>
+```
+
+- and in password resets/edit
+
+```
+<%= render 'shared/error_messages', object: f.object %>
+```
+
+- tests should be green
+- refresh and test home page, make sure we see tweet form
+
+### a proto feed
+
+- in models user add
+
+```
+  # Defines a proto-feed.
+  # See "Following users" for the full implementation.
+  def feed
+    Micropost.where("user_id = ?", id)
+  end
+```
+
+- update the code in cont/static pages contr
+
+```
+  def home
+    if logged_in?
+      @micropost  = current_user.microposts.build
+      @feed_items = current_user.feed.paginate(page: params[:page])
+    end
+  end
+```
+
+- create the status feed partial - shared/feed
+
+```
+<% if @feed_items.any? %>
+  <ol class="microposts">
+    <%= render @feed_items %>
+  </ol>
+  <%= will_paginate @feed_items %>
+<% end %>
+```
+
+- update views/static pages/home
+
+```
+<% if logged_in? %>
+  <div class="row">
+    <aside class="col-md-4">
+      <section class="user_info">
+        <%= render 'shared/user_info' %>
+      </section>
+      <section class="micropost_form">
+        <%= render 'shared/micropost_form' %>
+      </section>
+    </aside>
+    <div class="col-md-8">
+      <h3>Micropost Feed</h3>
+      <%= render 'shared/feed' %>
+    </div>
+  </div>
+<% else %>  <div class="center jumbotron">
+    <h1>Welcome to the Sample App</h1>
+
+    <h2>
+      This is the home page for the
+      <a href="http://www.railstutorial.org/">Ruby on Rails Tutorial</a>
+      sample application.
+    </h2>
+
+    <%= link_to "Sign up now!", signup_path, class: "btn btn-lg btn-primary" %>
+  </div>
+
+  <%= link_to image_tag("rails.png", alt: "Rails logo"),
+              'http://rubyonrails.org/' %>
+<% end %>
+
+```
+
+- refresh and the posts should appear
+- if you submit a blank one the page crashes
+- in controller/microposts contr, update the create with an empty arr
+
+```
+  def create
+    @micropost = current_user.microposts.build(micropost_params)
+    if @micropost.save
+      flash[:success] = "Micropost created!"
+      redirect_to root_url
+    else
+      @feed_items = []      
+      render 'static_pages/home'
+    end
+  end
+```
+
+### destroying microposts
+
+- add the delete link in views/microposts/micropost partial
+
+```
+ <li id="<%= micropost.id %>">
+  <%= link_to gravatar_for(micropost.user, size: 50), micropost.user %>
+  <span class="user"><%= link_to micropost.user.name, micropost.user %></span>
+  <span class="content"><%= micropost.content %></span>
+  <span class="timestamp">
+    Posted <%= time_ago_in_words(micropost.created_at) %> ago.
+    <% if current_user?(micropost.user) %>
+      <%= link_to "delete", micropost, method: :delete,
+                                       data: { confirm: "You sure?" } %>
+    <% end %>
+  </span>
+</li>
+
+```
+
+- update the code in contr/micro cont
+
+```
+class MicropostsController < ApplicationController
+  before_action :logged_in_user, only: [:create, :destroy]
+  before_action :correct_user,   only: :destroy
+
+  def create
+    @micropost = current_user.microposts.build(micropost_params)
+    if @micropost.save
+      flash[:success] = "Micropost created!"
+      redirect_to root_url
+    else
+      @feed_items = []      
+      render 'static_pages/home'
+    end
+  end
+
+  def destroy
+    @micropost.destroy
+    flash[:success] = "Micropost deleted"
+    redirect_to request.referrer || root_url
+  end
+
+  private
+
+    def micropost_params
+      params.require(:micropost).permit(:content)
+    end
+
+    def correct_user
+      @micropost = current_user.microposts.find_by(id: params[:id])
+      redirect_to root_url if @micropost.nil?
+    end    
+end
+
+```
+
+### microposts tests
+
+- add to test/fix/microposts.yml
+
+```
+  test "should redirect destroy for wrong micropost" do
+    log_in_as(users(:michael))
+    micropost = microposts(:ants)
+    assert_no_difference 'Micropost.count' do
+      delete micropost_path(micropost)
+    end
+    assert_redirected_to root_url
+  end  
+```
+
+- rails generate integration_test microposts_interface
+- in test/int/microposts_interface_test
+
+```
+
+  def setup
+    @user = users(:michael)
+  end
+
+  test "micropost interface" do
+    log_in_as(@user)
+    get root_path
+    assert_select 'div.pagination'
+    # Invalid submission
+    assert_no_difference 'Micropost.count' do
+      post microposts_path, params: { micropost: { content: "" } }
+    end
+    assert_select 'div#error_explanation'
+    # Valid submission
+    content = "This micropost really ties the room together"
+    assert_difference 'Micropost.count', 1 do
+      post microposts_path, params: { micropost: { content: content } }
+    end
+    assert_redirected_to root_url
+    follow_redirect!
+    assert_match content, response.body
+    # Delete post
+    assert_select 'a', text: 'delete'
+    first_micropost = @user.microposts.paginate(page: 1).first
+    assert_difference 'Micropost.count', -1 do
+      delete micropost_path(first_micropost)
+    end
+    # Visit different user (no delete links)
+    get user_path(users(:archer))
+    assert_select 'a', text: 'delete', count: 0
+  end
+```
+
+- in the file test/int/microposts interface test, add sidebar count
+
+```
+  test "micropost sidebar count" do
+    log_in_as(@user)
+    get root_path
+    assert_match "34 microposts", response.body
+    # User with zero microposts
+    other_user = users(:malory)
+    log_in_as(other_user)
+    get root_path
+    assert_match "0 microposts", response.body
+    other_user.microposts.create!(content: "A micropost")
+    get root_path
+    assert_match "1 micropost", response.body
+  end  
+
+```
+
+### micropost images
+
+- HE IS USING CARRIERWAVE
+
+## Chapter 14 - following users
+
+- rails generate model Relationship follower_id:integer followed_id:integer
+- update the migration file with
+
+```
+class CreateRelationships < ActiveRecord::Migration[5.0]
+  def change
+    create_table :relationships do |t|
+      t.integer :follower_id
+      t.integer :followed_id
+
+      t.timestamps
+    end
+    add_index :relationships, :follower_id
+    add_index :relationships, :followed_id
+    add_index :relationships, [:follower_id, :followed_id], unique: true
+  end
+end
+```
+
+- rails db:migrate
+- update user.rb
+
+```
+  has_many :active_relationships, class_name:  "Relationship",
+                                  foreign_key: "follower_id",
+                                  dependent:   :destroy
+```
+
+- in relationships.rb
+
+```
+  belongs_to :follower, class_name: "User"
+  belongs_to :followed, class_name: "User"
+```
+
+### relationship validations
+
+- add to test/models/relationship test
+
+```
+class RelationshipTest < ActiveSupport::TestCase
+  def setup
+    @relationship = Relationship.new(follower_id: users(:michael).id,
+                                     followed_id: users(:archer).id)
+  end
+
+  test "should be valid" do
+    assert @relationship.valid?
+  end
+
+  test "should require a follower_id" do
+    @relationship.follower_id = nil
+    assert_not @relationship.valid?
+  end
+
+  test "should require a followed_id" do
+    @relationship.followed_id = nil
+    assert_not @relationship.valid?
+  end
+end
+```
+
+- add to relationship.rb
+
+```
+class Relationship < ApplicationRecord
+  belongs_to :follower, class_name: "User"
+  belongs_to :followed, class_name: "User"
+  validates :follower_id, presence: true
+  validates :followed_id, presence: true  
+end
+
+```
+
+- delete the content in test/fixtures/relationships.yml
+- test should be green
+
+### followed users
+
+```
+Rails would see “followeds” and use the singular “followed”, assembling a collection using the followed_id in the relationships table. But, as noted in Section 14.1.1, user.followeds is rather awkward, so we’ll write user.following instead. Naturally, Rails allows us to override the default, in this case using the source parameter (as shown in Listing 14.8), which explicitly tells Rails that the source of the following array is the set of followed ids.
+```
+
+- in user.rb
+
+```
+
+has_many :following, through: :active_relationships, source: :followed
+```
+
+- in test/models/user_test.rb
+
+```
+  test "should follow and unfollow a user" do
+    michael = users(:michael)
+    archer  = users(:archer)
+    assert_not michael.following?(archer)
+    michael.follow(archer)
+    assert michael.following?(archer)
+    michael.unfollow(archer)
+    assert_not michael.following?(archer)
+  end
+```
+
+- in user.rb, after the feed method before private section
+
+```
+  # Follows a user.
+  def follow(other_user)
+    following << other_user
+  end
+
+  # Unfollows a user.
+  def unfollow(other_user)
+    following.delete(other_user)
+  end
+
+  # Returns true if the current user is following the other user.
+  def following?(other_user)
+    following.include?(other_user)
+  end
+```
+
+### followers
+
+- in user.rb
+
+```
+  has_many :passive_relationships, class_name:  "Relationship",
+                                   foreign_key: "followed_id",
+                                   dependent:   :destroy
+  has_many :following, through: :active_relationships,  source: :followed
+  has_many :followers, through: :passive_relationships, source: :follower
+```
+
+- update the test in test/models/user test
+
+```
+  test "should follow and unfollow a user" do
+    michael  = users(:michael)
+    archer   = users(:archer)
+    assert_not michael.following?(archer)
+    michael.follow(archer)
+    assert michael.following?(archer)
+    assert archer.followers.include?(michael)
+    michael.unfollow(archer)
+    assert_not michael.following?(archer)
+  end
+```
+
+- tests should be green
+
+### web interface for follwing users
+
+- update the seeds file
+
+```
+User.destroy_all
+
+User.create!(name:  "Pep Merc",
+             email: "buddylee939@hotmail.com",
+             password:              "asdfasdf",
+             password_confirmation: "asdfasdf",
+             admin: true,
+             activated: true,
+             activated_at: Time.zone.now)
+
+num = 99
+
+num.times do |n|
+  name  = Faker::Name.name
+  email = Faker::Internet.email
+  password = "asdfasdf"
+  User.create!(name:  name,
+               email: email,
+               password:              password,
+               password_confirmation: password,
+               activated: true,
+               activated_at: Time.zone.now)
+end
+
+num_s = (num+1).to_s
+puts num_s + ' Users created'
+
+users = User.order(:created_at).take(6)
+50.times do
+  content = Faker::Lorem.sentence(5)
+  users.each { |user| user.microposts.create!(content: content) }
+end
+
+puts '50 posts created'
+
+# Following relationships
+users = User.all
+user  = users.first
+following = users[2..50]
+followers = users[3..40]
+following.each { |followed| user.follow(followed) }
+followers.each { |follower| follower.follow(user) }
+```
+
+- rails db:migrate:reset
+- rails db:seed
+
+```
+Using the console, confirm that User.first.followers.count matches the value expected from Listing 14.14.
+Confirm that User.first.following.count is correct as well.
+```
+
+- in routes.rb
+
+```
+  resources :users do
+    member do
+      get :following, :followers
+    end
+  end
+```
+
+- create the partial shared/stats.html
+
+```
+
+<% @user ||= current_user %>
+<div class="stats">
+  <a href="<%= following_user_path(@user) %>">
+    <strong id="following" class="stat">
+      <%= @user.following.count %>
+    </strong>
+    following
+  </a>
+  <a href="<%= followers_user_path(@user) %>">
+    <strong id="followers" class="stat">
+      <%= @user.followers.count %>
+    </strong>
+    followers
+  </a>
+</div>
+```
+
+- add the partial render to static_pages/home
+
+```
+      <section class="stats">
+        <%= render 'shared/stats' %>
+      </section>
+```
+
+- style the stats in css in the sidebar section
+
+```
+
+.stats {
+  overflow: auto;
+  margin-top: 0;
+  padding: 0;
+  a {
+    float: left;
+    padding: 0 10px;
+    border-left: 1px solid $gray-lighter;
+    color: gray;
+    &:first-child {
+      padding-left: 0;
+      border: 0;
+    }
+    &:hover {
+      text-decoration: none;
+      color: blue;
+    }
+  }
+  strong {
+    display: block;
+  }
+}
+
+.user_avatars {
+  overflow: auto;
+  margin-top: 10px;
+  .gravatar {
+    margin: 1px 1px;
+  }
+  a {
+    padding: 0;
+  }
+}
+
+.users.follow {
+  padding: 0;
+}
+```
+
+- create the users/follow_form partial
+
+```
+<% unless current_user?(@user) %>
+  <div id="follow_form">
+  <% if current_user.following?(@user) %>
+    <%= render 'unfollow' %>
+  <% else %>
+    <%= render 'follow' %>
+  <% end %>
+  </div>
+<% end %>
+```
+
+- in routes
+
+```
+  resources :relationships,       only: [:create, :destroy]
+```
+
+- create users/follow and users unfollow partials
+
+```
+<%= form_for(current_user.active_relationships.build) do |f| %>
+  <div><%= hidden_field_tag :followed_id, @user.id %></div>
+  <%= f.submit "Follow", class: "btn btn-primary" %>
+<% end %>
+```
+
+```
+<%= form_for(current_user.active_relationships.find_by(followed_id: @user.id),
+             html: { method: :delete }) do |f| %>
+  <%= f.submit "Unfollow", class: "btn" %>
+<% end %>
+```
+
+- add the code to users/show
+
+```
+<% provide(:title, @user.name) %>
+<div class="row">
+  <aside class="col-md-4">
+    <section>
+      <h1>
+        <%= gravatar_for @user %>
+        <%= @user.name %>
+      </h1>
+    </section>
+    <section class="stats">
+      <%= render 'shared/stats' %>
+    </section>
+  </aside>
+  <div class="col-md-8">
+    <%= render 'follow_form' if logged_in? %>
+    <% if @user.microposts.any? %>
+      <h3>Microposts (<%= @user.microposts.count %>)</h3>
+      <ol class="microposts">
+        <%= render @microposts %>
+      </ol>
+      <%= will_paginate @microposts %>
+    <% end %>
+  </div>
+</div>
+```
+
+### following and followers pages
+
+- in test/controllers/users controller
+
+```
+class UsersControllerTest < ActionDispatch::IntegrationTest
+
+  def setup
+    @user = users(:michael)
+    @other_user = users(:archer)
+  end
+  .
+  .
+  .
+  test "should redirect following when not logged in" do
+    get following_user_path(@user)
+    assert_redirected_to login_url
+  end
+
+  test "should redirect followers when not logged in" do
+    get followers_user_path(@user)
+    assert_redirected_to login_url
+  end
+```
+
+- in controller/users controller
+
+```
+  before_action :logged_in_user, only: [:index, :edit, :update, :destroy,
+                                        :following, :followers]
+  def following
+    @title = "Following"
+    @user  = User.find(params[:id])
+    @users = @user.following.paginate(page: params[:page])
+    render 'show_follow'
+  end
+
+  def followers
+    @title = "Followers"
+    @user  = User.find(params[:id])
+    @users = @user.followers.paginate(page: params[:page])
+    render 'show_follow'
+  end
+```
+
+- create the file views/users/show follow
+
+```
+<% provide(:title, @title) %>
+<div class="row">
+  <aside class="col-md-4">
+    <section class="user_info">
+      <%= gravatar_for @user %>
+      <h1><%= @user.name %></h1>
+      <span><%= link_to "view my profile", @user %></span>
+      <span><b>Microposts:</b> <%= @user.microposts.count %></span>
+    </section>
+    <section class="stats">
+      <%= render 'shared/stats' %>
+      <% if @users.any? %>
+        <div class="user_avatars">
+          <% @users.each do |user| %>
+            <%= link_to gravatar_for(user, size: 30), user %>
+          <% end %>
+        </div>
+      <% end %>
+    </section>
+  </aside>
+  <div class="col-md-8">
+    <h3><%= @title %></h3>
+    <% if @users.any? %>
+      <ul class="users follow">
+        <%= render @users %>
+      </ul>
+      <%= will_paginate %>
+    <% end %>
+  </div>
+</div>
+```
+
+- rails generate integration_test following
+- in test/fix/relationships.yml
+
+```
+one:
+  follower: michael
+  followed: lana
+
+two:
+  follower: michael
+  followed: malory
+
+three:
+  follower: lana
+  followed: michael
+
+four:
+  follower: archer
+  followed: michael
+```
+
+- in test/inte/following_test
+
+```
+  def setup
+    @user = users(:michael)
+    log_in_as(@user)
+  end
+
+  test "following page" do
+    get following_user_path(@user)
+    assert_not @user.following.empty?
+    assert_match @user.following.count.to_s, response.body
+    @user.following.each do |user|
+      assert_select "a[href=?]", user_path(user)
+    end
+  end
+
+  test "followers page" do
+    get followers_user_path(@user)
+    assert_not @user.followers.empty?
+    assert_match @user.followers.count.to_s, response.body
+    @user.followers.each do |user|
+      assert_select "a[href=?]", user_path(user)
+    end
+  end
+```
+
+### A working follow button the standard way
+
+- rails generate controller Relationships
+- in test/contr/relationships contr test
+
+```
+  test "create should require logged-in user" do
+    assert_no_difference 'Relationship.count' do
+      post relationships_path
+    end
+    assert_redirected_to login_url
+  end
+
+  test "destroy should require logged-in user" do
+    assert_no_difference 'Relationship.count' do
+      delete relationship_path(relationships(:one))
+    end
+    assert_redirected_to login_url
+  end
+```
+
+- in contr/relationships controller
+
+```
+  before_action :logged_in_user
+
+  def create
+    user = User.find(params[:followed_id])
+    current_user.follow(user)
+    redirect_to user
+  end
+
+  def destroy
+    user = Relationship.find(params[:id]).followed
+    current_user.unfollow(user)
+    redirect_to user
+  end
+```
+
+- THE FOLLOWING AND UNFOLLW BUTTONS SHOULD WORK
+
+### A working follow button with Ajax
+
+- update the follow and unfollow partials
+
+```
+<%= form_for(current_user.active_relationships.build, remote: true) do |f| %>
+  <div><%= hidden_field_tag :followed_id, @user.id %></div>
+  <%= f.submit "Follow", class: "btn btn-primary" %>
+<% end %>
+
+<%= form_for(current_user.active_relationships.find_by(followed_id: @user.id),
+             html: { method: :delete },
+             remote: true) do |f| %>
+  <%= f.submit "Unfollow", class: "btn" %>
+<% end %>
+```
+
+- in contr/relationships contr
+
+```
+
+  before_action :logged_in_user
+
+  def create
+    @user = User.find(params[:followed_id])
+    current_user.follow(@user)
+    respond_to do |format|
+      format.html { redirect_to @user }
+      format.js
+    end
+  end
+
+  def destroy
+    @user = Relationship.find(params[:id]).followed
+    current_user.unfollow(@user)
+    respond_to do |format|
+      format.html { redirect_to @user }
+      format.js
+    end
+  end
+```
+
+- add to config/application.rb
+
+```
+    # Include the authenticity token in remote forms.
+    config.action_view.embed_authenticity_token_in_remote_forms = true
+```
+
+- create the file views/relationships/create.js.erb
+
+```
+$("#follow_form").html("<%= escape_javascript(render('users/unfollow')) %>");
+$("#followers").html('<%= @user.followers.count %>');
+```
+
+- create views/relationships/destroy.js.erb
+
+```
+$("#follow_form").html("<%= escape_javascript(render('users/follow')) %>");
+$("#followers").html('<%= @user.followers.count %>');
+```
+
+- With that, you should navigate to a user profile page and verify that you can follow and unfollow without a page refresh.
+
+### following tests
+
+```
+This tests the standard implementation, but testing the Ajax version is almost exactly the same; the only difference is the addition of the option xhr: true:
+
+assert_difference '@user.following.count', 1 do
+  post relationships_path, params: { followed_id: @other.id }, xhr: true
+end
+Here xhr stands for XmlHttpRequest; setting the xhr option to true issues an Ajax request in the test, which causes the respond_to block in Listing 14.36 to execute the proper JavaScript method.
+```
+
+- in test/inte/following test
+
+```
+  def setup
+    @user  = users(:michael)
+    @other = users(:archer)
+    log_in_as(@user)
+  end
+  test "should follow a user the standard way" do
+    assert_difference '@user.following.count', 1 do
+      post relationships_path, params: { followed_id: @other.id }
+    end
+  end
+
+  test "should follow a user with Ajax" do
+    assert_difference '@user.following.count', 1 do
+      post relationships_path, xhr: true, params: { followed_id: @other.id }
+    end
+  end
+
+  test "should unfollow a user the standard way" do
+    @user.follow(@other)
+    relationship = @user.active_relationships.find_by(followed_id: @other.id)
+    assert_difference '@user.following.count', -1 do
+      delete relationship_path(relationship)
+    end
+  end
+
+  test "should unfollow a user with Ajax" do
+    @user.follow(@other)
+    relationship = @user.active_relationships.find_by(followed_id: @other.id)
+    assert_difference '@user.following.count', -1 do
+      delete relationship_path(relationship), xhr: true
+    end
+  end  
+```
+
+
+### The status feed
+
+- update test/models/user test
+
+```
+  test "feed should have the right posts" do
+    michael = users(:michael)
+    archer  = users(:archer)
+    lana    = users(:lana)
+    # Posts from followed user
+    lana.microposts.each do |post_following|
+      assert michael.feed.include?(post_following)
+    end
+    # Posts from self
+    michael.microposts.each do |post_self|
+      assert michael.feed.include?(post_self)
+    end
+    # Posts from unfollowed user
+    archer.microposts.each do |post_unfollowed|
+      assert_not michael.feed.include?(post_unfollowed)
+    end
+  end
+```
+
+```
+We see from these conditions that we’ll need an array of ids corresponding to the users being followed. One way to do this is to use Ruby’s map method, available on any “enumerable” object, i.e., any object (such as an Array or a Hash) that consists of a collection of elements.9 We saw an example of this method in Section 4.3.2; as another example, we’ll use map to convert an array of integers to an array of strings:
+
+$ rails console
+>> [1, 2, 3, 4].map { |i| i.to_s }
+=> ["1", "2", "3", "4"]
+>> [1, 2, 3, 4].map(&:to_s)
+=> ["1", "2", "3", "4"]
+>> [1, 2, 3, 4].map(&:to_s).join(', ')
+=> "1, 2, 3, 4"
+```
+
+- update the feed in models/user.rb
+
+```
+  # Returns a user's status feed.
+  def feed
+    Micropost.where("user_id IN (?) OR user_id = ?", following_ids, id)
+  end
+
+```
+
+```
+In some applications, this initial implementation might be good enough for most practical purposes, but Listing 14.44 isn’t the final implementation; see if you can make a guess about why not before moving on to the next section. (Hint: What if a user is following 5000 other users?)
+```
+
+- update models/user.rb
+
+```
+  def feed
+    following_ids = "SELECT followed_id FROM relationships
+                     WHERE  follower_id = :user_id"
+    Micropost.where("user_id IN (#{following_ids})
+                     OR user_id = :user_id", user_id: id)
+  end
+```
+
+```
+Of course, even the subselect won’t scale forever. For bigger sites, you would probably need to generate the feed asynchronously using a background job, but such scaling subtleties are beyond the scope of this tutorial.
+```
+
+- getting it on heroku
+
+```
+At this point, we’re ready to merge our changes into the master branch:
+
+$ rails test
+$ git add -A
+$ git commit -m "Add user following"
+$ git checkout master
+$ git merge following-users
+We can then push the code to the remote repository and deploy the application to production:
+
+$ git push
+$ git push heroku
+$ heroku pg:reset DATABASE
+$ heroku run rails db:migrate
+$ heroku run rails db:seed
+The result is a working status feed on the live Web (Figure 14.24).
+```
+
+- update test/inte/following test
+
+```
+class FollowingTest < ActionDispatch::IntegrationTest
+
+  def setup
+    @user = users(:michael)
+    log_in_as(@user)
+  end
+  .
+  .
+  .
+  test "feed on Home page" do
+    get root_path
+    @user.feed.paginate(page: 1).each do |micropost|
+      assert_match CGI.escapeHTML(FILL_IN), FILL_IN
+    end
+  end
+end
+```
